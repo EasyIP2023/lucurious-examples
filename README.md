@@ -1,5 +1,5 @@
 # Lucurious Examples
-Folder with a dump of very simple examples.
+Folder with a dump of very simple examples for liblucurious.so.
 
 **To install**
 Via AUR
