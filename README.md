@@ -1,14 +1,17 @@
 # Lucurious Examples
 Folder with a dump of very simple examples for liblucurious.so.
 
-**To install**
-Via AUR
+### To install
+
+**Via AUR**
 ```bash
 yay -S lucurious-git
 ```
 
-Via github folder
+**Via github folder**
 ```bash
+git clone https://github.com/EasyIP2023/lucurious.git
+cd lucurious/
 mkdir -v build
 meson build
 sudo ninja install -C build
