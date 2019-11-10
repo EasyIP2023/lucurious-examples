@@ -1,0 +1,23 @@
+# Ignore object files
+**/*.o
+
+# Ignore static libraries
+**/*.a
+
+# Ignore shared libraries
+**/*.so
+
+# Ignore SPIR-V Files
+**/*.spv
+
+# Ignore all gdb history files
+**/*.gdb_history
+
+# Ignore all se executables in examples
+**/*se
+
+valgrind-out.txt
+
+**/*.gdb*
+
+peda*
