@@ -20,4 +20,6 @@ valgrind-out.txt
 
 **/*.gdb*
 
+**/*vgcore*
+
 peda*
