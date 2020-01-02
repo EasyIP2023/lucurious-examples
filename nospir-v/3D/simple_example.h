@@ -25,6 +25,19 @@
 #ifndef SIMPLE_EXAMPLE_H
 #define SIMPLE_EXAMPLE_H
 
+#define FREEME(app,wc) \
+  do { \
+    if (app) wlu_freeup_vk(app); \
+    if (wc) wlu_freeup_wc(wc); \
+    wlu_release_blocks(); \
+  } while(0);
+
+#define check_err(err,app,wc,shader) \
+  do { \
+    if (!shader && err) wlu_freeup_shader(app, shader); \
+    if (err) { FREEME(app, wc) abort(); } \
+  } while(0);
+
 const char *device_extensions[] = {
   VK_KHR_SWAPCHAIN_EXTENSION_NAME
 };
