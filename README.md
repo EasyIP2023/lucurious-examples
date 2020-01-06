@@ -1,7 +1,7 @@
 # Lucurious Examples
 Folder with a dump of very simple examples for liblucurious.so.
 
-**NOTE:** If memory leaks are an issue (which they are not because any and all memory allocated including heap will get returned to the system on program termination [The Linux Programming Interface By Michael Kerrisk]) use glslangValidator to compile then wlu_read_file() to read the spirv bytes.
+**NOTE:** If memory leaks are an issue (which they are not because any and all memory allocated including heap will get returned to the system on program termination [The Linux Programming Interface By Michael Kerrisk]) use **glslangValidator** to compile shader program then **wlu_read_file()** to read the SPIR-V bytes.
 
 ### To install
 
