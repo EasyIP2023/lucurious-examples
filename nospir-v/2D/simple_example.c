@@ -33,7 +33,6 @@
 #include <wlu/vkall.h>
 #include <wlu/client.h>
 #include <wlu/log.h>
-#include <wlu/errors.h>
 #include <wlu/gp.h>
 #include <wlu/shade.h>
 #include <wlu/mm.h>
@@ -148,7 +147,7 @@ int main(void) {
   err = wlu_acquire_next_sc_img(app, cur_scd, &cur_buff);
   check_err(err, app, wc, NULL)
 
-  err = wlu_create_pipeline_layout(app, cur_gpd, 0, NULL, 0, NULL);
+  err = wlu_create_pipeline_layout(app, cur_gpd, 0, 0, NULL);
   check_err(err, app, wc, NULL)
 
   /* Starting point for render pass creation */
@@ -358,7 +357,7 @@ int main(void) {
   err = wlu_queue_present_queue(app, 1, signal_semaphores, 1, &app->sc_data[cur_scd].swap_chain, &cur_buff, NULL);
   check_err(err, app, wc, NULL)
 
-  wait_seconds(1);
+  sleep(1);
   FREEME(app, wc)
 
   return EXIT_SUCCESS;
