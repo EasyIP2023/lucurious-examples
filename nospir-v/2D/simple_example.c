@@ -24,18 +24,9 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <signal.h>
+#include <stdint.h>
 #include <unistd.h>
 #include <stdbool.h>
-
-#define INCLUDE_MATRIX_H 1
-
-#include <wlu/vkall.h>
-#include <wlu/client.h>
-#include <wlu/log.h>
-#include <wlu/gp.h>
-#include <wlu/shade.h>
-#include <wlu/mm.h>
 
 #include "simple_example.h"
 

@@ -25,6 +25,12 @@
 #ifndef SIMPLE_EXAMPLE_H
 #define SIMPLE_EXAMPLE_H
 
+#define LUCUR_VKCOMP_API
+#define LUCUR_VKCOMP_MATRIX_API
+#define LUCUR_WAYLAND_API
+#define LUCUR_FILE_API
+#include <wlu/lucurious.h>
+
 #define FREEME(app,wc) \
   do { \
     if (app) wlu_freeup_vk(app); \
