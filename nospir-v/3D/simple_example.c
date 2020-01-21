@@ -68,19 +68,19 @@ static void wlu_print_matrices() {
 static VkResult init_buffs(vkcomp *app) {
   VkResult err;
 
-  err = wlu_otba(app, 2, WLU_BUFFS_DATA);
+  err = wlu_otba(app, ALLOC_INDEX_NON, 2, WLU_BUFFS_DATA);
   if (err) return err;
 
-  err = wlu_otba(app, 1, WLU_SC_DATA);
+  err = wlu_otba(app, ALLOC_INDEX_NON, 1, WLU_SC_DATA);
   if (err) return err;
 
-  err = wlu_otba(app, 1, WLU_GP_DATA);
+  err = wlu_otba(app, ALLOC_INDEX_NON, 1, WLU_GP_DATA);
   if (err) return err;
 
-  err = wlu_otba(app, 1, WLU_CMD_DATA);
+  err = wlu_otba(app, ALLOC_INDEX_NON, 1, WLU_CMD_DATA);
   if (err) return err;
 
-  err = wlu_otba(app, 1, WLU_DESC_DATA);
+  err = wlu_otba(app, ALLOC_INDEX_NON, 1, WLU_DESC_DATA);
   if (err) return err;
 
   return err;
@@ -89,7 +89,6 @@ static VkResult init_buffs(vkcomp *app) {
 int main(void) {
   VkResult err;
 
-  /* One just needs to make sure they allocate a large block of memory once */
   if (!wlu_otma(ma)) return EXIT_FAILURE;
 
   wclient *wc = wlu_init_wc();
@@ -144,6 +143,9 @@ int main(void) {
   check_err(extent3D.width == UINT32_MAX, app, wc, NULL)
 
   uint32_t cur_buff = 0, cur_scd = 0, cur_pool = 0, cur_dd = 0, cur_gpd = 0, cur_bd = 0, cur_cmd = 0;
+  err = wlu_otba(app, cur_scd, capabilities.minImageCount, WLU_SC_DATA_MEMS);
+  check_err(err, app, wc, NULL)
+
   err = wlu_create_swap_chain(app, cur_scd, capabilities, surface_fmt, pres_mode, extent3D.width, extent3D.height);
   check_err(err, app, wc, NULL)
 
@@ -151,9 +153,6 @@ int main(void) {
   check_err(err, app, wc, NULL)
 
   err = wlu_create_cmd_buffs(app, cur_pool, cur_scd, VK_COMMAND_BUFFER_LEVEL_PRIMARY);
-  check_err(err, app, wc, NULL)
-
-  err = wlu_exec_begin_cmd_buffs(app, cur_pool, cur_scd, VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT, NULL);
   check_err(err, app, wc, NULL)
 
   err = wlu_create_img_views(app, cur_scd, surface_fmt.format, VK_IMAGE_VIEW_TYPE_2D);
@@ -173,7 +172,7 @@ int main(void) {
   check_err(err, app, wc, NULL)
 
   /* Acquire the swapchain image in order to set its layout */
-  err = wlu_acquire_next_sc_img(app, cur_scd, &cur_buff);
+  err = wlu_acquire_sc_img_index(app, cur_scd, &cur_buff);
   check_err(err, app, wc, NULL)
 
   float fovy = wlu_set_fovy(45.0f);
@@ -189,7 +188,7 @@ int main(void) {
   /* Create uniform buffer that has the transformation matrices (for the vertex shader) */
   err = wlu_create_buffer(
     app, cur_bd, sizeof(ubd.mvp), 0, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-    VK_SHARING_MODE_EXCLUSIVE, 0, NULL, "uniform",
+    VK_SHARING_MODE_EXCLUSIVE, 0, NULL, 'u',
     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
   );
   check_err(err, app, wc, NULL)
@@ -200,7 +199,9 @@ int main(void) {
   cur_bd++;
 
   /* MVP transformation is in a single uniform buffer variable (not an array), So descriptor count is 1 */
-  app->desc_data[cur_dd].dlsc = NUM_DESCRIPTOR_SETS;
+  err = wlu_otba(app, cur_dd, NUM_DESCRIPTOR_SETS, WLU_DESC_DATA_MEMS);
+  check_err(err, app, wc, NULL)
+
   VkDescriptorSetLayoutBinding desc_set = wlu_set_desc_set_layout_binding(
     0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, NUM_DESCRIPTOR_SETS, VK_SHADER_STAGE_VERTEX_BIT, NULL
   );
@@ -283,7 +284,7 @@ int main(void) {
   VkDeviceSize vsize = sizeof(vertices);
   err = wlu_create_buffer(
     app, cur_bd, vsize, 0, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-    VK_SHARING_MODE_EXCLUSIVE, 0, NULL, "vertex",
+    VK_SHARING_MODE_EXCLUSIVE, 0, NULL, 'v',
     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
   );
   check_err(err, app, wc, NULL)
@@ -367,10 +368,13 @@ int main(void) {
     VK_SAMPLE_COUNT_1_BIT, VK_FALSE, 0.0f, NULL, VK_FALSE, VK_FALSE
   );
 
-  err = wlu_create_graphics_pipelines(app, 2, shader_stages,
+  err = wlu_otba(app, cur_gpd, 1, WLU_GP_DATA_MEMS);
+  check_err(err, app, wc, NULL)
+
+  err = wlu_create_graphics_pipelines(app, cur_gpd, 2, shader_stages,
     &vertex_input_info, &input_assembly, VK_NULL_HANDLE, &view_port_info,
     &rasterizer, &multisampling, &ds_info, &color_blending,
-    &dynamic_state, 0, VK_NULL_HANDLE, UINT32_MAX, cur_gpd, 1
+    &dynamic_state, 0, VK_NULL_HANDLE, UINT32_MAX
   );
   check_err(err, NULL, NULL, vert_shader_module)
   check_err(err, app, wc, frag_shader_module)
@@ -386,6 +390,9 @@ int main(void) {
   clear_values[0] = wlu_set_clear_value(float32, int32, uint32, 0.0f, 0);
   clear_values[1] = wlu_set_clear_value(float32, int32, uint32, 1.0f, 1);
 
+  err = wlu_exec_begin_cmd_buffs(app, cur_pool, cur_scd, VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT, NULL);
+  check_err(err, app, wc, NULL)
+
   /* Vertex buffer cannot be binded until we begin a renderpass */
   wlu_exec_begin_render_pass(app, cur_pool, cur_scd, cur_gpd, 0, 0, extent3D.width,
                              extent3D.height, 2, clear_values, VK_SUBPASS_CONTENTS_INLINE);
@@ -393,7 +400,7 @@ int main(void) {
   wlu_bind_desc_sets(app, cur_pool, cur_buff, cur_dd, cur_gpd, VK_PIPELINE_BIND_POINT_GRAPHICS, 0, 0, NULL);
 
   for (uint32_t i = 0; i < app->bdc; i++) {
-    wlu_log_me(WLU_INFO, "app->buffs_data[%d].name: %s", i, app->buffs_data[i].name);
+    wlu_log_me(WLU_INFO, "app->buffs_data[%d].name: %c", i, app->buffs_data[i].name);
     wlu_log_me(WLU_INFO, "app->buffs_data[%d].buff: %p - %p", i, &app->buffs_data[i].buff, app->buffs_data[i].buff);
   }
 
