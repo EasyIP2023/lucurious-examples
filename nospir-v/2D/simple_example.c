@@ -60,7 +60,7 @@ static VkResult init_buffs(vkcomp *app) {
 int main(void) {
   VkResult err;
 
-  if (!wlu_otma(ma)) return EXIT_FAILURE;
+  if (!wlu_otma(WLU_LARGE_BLOCK_PRIV, ma)) return EXIT_FAILURE;
 
   wclient *wc = wlu_init_wc();
   check_err(!wc, NULL, NULL, NULL)
@@ -77,7 +77,7 @@ int main(void) {
   err = wlu_set_debug_message(app);
   check_err(err, app, wc, NULL)
 
-  check_err(wlu_connect_client(wc), app, wc, NULL)
+  check_err(!wlu_create_client(wc), app, wc, NULL)
 
   /* initialize vulkan app surface */
   err = wlu_vkconnect_surfaceKHR(app, wc->display, wc->surface);
@@ -201,7 +201,7 @@ int main(void) {
     wlu_print_vector(&vertices[i].color, WLU_VEC3);
   }
 
-  err = wlu_create_buffer(app, cur_bd, vsize, 0,
+  err = wlu_create_vk_buffer(app, cur_bd, vsize, 0,
     VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_SHARING_MODE_EXCLUSIVE, 0, NULL, 's',
     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
   );
@@ -219,7 +219,7 @@ int main(void) {
   * writes to the memory by the host are visible to the device
   * (and vice-versa) without the need to flush memory caches.
   */
-  err = wlu_create_buffer(app, cur_bd, vsize, 0,
+  err = wlu_create_vk_buffer(app, cur_bd, vsize, 0,
     VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
     VK_SHARING_MODE_EXCLUSIVE, 0, NULL, 'v', VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
   );

@@ -36,13 +36,13 @@
   do { \
     if (app) wlu_freeup_vk(app); \
     if (wc) wlu_freeup_wc(wc); \
-    wlu_release_block(); \
+    wlu_release_blocks(); \
   } while(0);
 
 #define check_err(err,app,wc,shader) \
   do { \
     if (!shader && err) wlu_freeup_shader(app, shader); \
-    if (err) { FREEME(app, wc) abort(); } \
+    if (err) { FREEME(app, wc) exit(-1); } \
   } while(0);
 
 const char *device_extensions[] = {
