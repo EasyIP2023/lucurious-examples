@@ -245,6 +245,9 @@ int main(void) {
   VkShaderModule vert_shader_module = wlu_create_shader_module(app, shi_vert.bytes, shi_vert.byte_size);
   check_err(!vert_shader_module, app, wc, frag_shader_module)
 
+  // wlu_freeup_spriv_bytes(WLU_UTILS_FILE_SPRIV, shi_vert.bytes);
+  // wlu_freeup_spriv_bytes(WLU_UTILS_FILE_SPRIV, shi_frag.bytes);
+
   VkPipelineShaderStageCreateInfo vert_shader_stage_info = wlu_set_shader_stage_info(
     vert_shader_module, "main", VK_SHADER_STAGE_VERTEX_BIT, NULL
   );
@@ -338,14 +341,14 @@ int main(void) {
   err = wlu_exec_stop_cmd_buffs(app, cur_pool, cur_scd);
   check_err(err, app, wc, NULL)
 
-  VkPipelineStageFlags wait_stages[1] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
-  VkSemaphore wait_semaphores[1] = {app->sc_data[cur_scd].sems[cur_buff].image};
-  VkSemaphore signal_semaphores[1] = {app->sc_data[cur_scd].sems[cur_buff].render};
+  VkPipelineStageFlags pipe_stage_flags[1] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+  VkSemaphore image_sems[1] = {app->sc_data[cur_scd].sems[cur_buff].image};
+  VkSemaphore render_sems[1] = {app->sc_data[cur_scd].sems[cur_buff].render};
   VkCommandBuffer cmd_buffs[1] = {app->cmd_data[cur_pool].cmd_buffs[cur_buff]};
-  err = wlu_queue_graphics_queue(app, 1, cmd_buffs, 1, wait_semaphores, wait_stages, 1, signal_semaphores);
+  err = wlu_queue_graphics_queue(app, 1, cmd_buffs, 1, image_sems, pipe_stage_flags, 1, render_sems);
   check_err(err, app, wc, NULL)
 
-  err = wlu_queue_present_queue(app, 1, signal_semaphores, 1, &app->sc_data[cur_scd].swap_chain, &cur_buff, NULL);
+  err = wlu_queue_present_queue(app, 1, render_sems, 1, &app->sc_data[cur_scd].swap_chain, &cur_buff, NULL);
   check_err(err, app, wc, NULL)
 
   sleep(1);
