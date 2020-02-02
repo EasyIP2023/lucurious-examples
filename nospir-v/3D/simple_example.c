@@ -128,7 +128,7 @@ int main(void) {
   check_err(capabilities.minImageCount == UINT32_MAX, app, wc, NULL)
 
   /**
-  * VK_FORMAT_B8G8R8A8_UNORM will store the B, G, R and alpha channels
+  * VK_FORMAT_B8G8R8A8_UNORM will store the R, G, B and alpha channels
   * in that order with an 8 bit unsigned integer and a total of 32 bits per pixel.
   * SRGB if used for colorSpace if available, because it
   * results in more accurate perceived colors
@@ -257,21 +257,6 @@ int main(void) {
   wlu_log_me(WLU_SUCCESS, "Successfully created the render pass!!!");
   /* End of render pass creation */
 
-  wlu_log_me(WLU_INFO, "Start of shader creation");
-
-  wlu_log_me(WLU_WARNING, "Compiling the frag code to spirv shader");
-  wlu_shader_info shi_frag = wlu_compile_to_spirv(VK_SHADER_STAGE_FRAGMENT_BIT,
-                             fragShaderText, "frag.spv", "main");
-  check_err(!shi_frag.bytes, app, wc, NULL)
-
-  wlu_log_me(WLU_WARNING, "Compiling the vert code to spirv shader");
-  wlu_shader_info shi_vert = wlu_compile_to_spirv(VK_SHADER_STAGE_VERTEX_BIT,
-                             vertShaderText, "vert.spv", "main");
-  check_err(!shi_vert.bytes, app, wc, NULL)
-
-  wlu_log_me(WLU_SUCCESS, "vert.spv and frag.spv officially created");
-  wlu_log_me(WLU_INFO, "End of shader creation");
-
   VkImageView vkimg_attach[2];
   vkimg_attach[1] = app->sc_data[cur_scd].depth.view;
   err = wlu_create_framebuffers(app, cur_scd, cur_gpd, 2, vkimg_attach, extent3D.width, extent3D.height, 1);
@@ -305,6 +290,16 @@ int main(void) {
 
   /* End of vertex buffer */
 
+  wlu_log_me(WLU_INFO, "Start of shader creation");
+  wlu_log_me(WLU_WARNING, "Compiling the fragment shader code to spirv bytes");
+  wlu_shader_info shi_frag = wlu_compile_to_spirv(VK_SHADER_STAGE_FRAGMENT_BIT, fragShaderText, "frag.spv", "main");
+  check_err(!shi_frag.bytes, app, wc, NULL)
+
+  wlu_log_me(WLU_WARNING, "Compiling the vertex shader code into spirv bytes");
+  wlu_shader_info shi_vert = wlu_compile_to_spirv(VK_SHADER_STAGE_VERTEX_BIT, vertShaderText, "vert.spv", "main");
+  check_err(!shi_vert.bytes, app, wc, NULL)
+  wlu_log_me(WLU_SUCCESS, "vert.spv and frag.spv officially created");
+
   VkShaderModule vert_shader_module = wlu_create_shader_module(app, shi_vert.bytes, shi_vert.byte_size);
   check_err(!vert_shader_module, app, wc, NULL)
 
@@ -313,6 +308,7 @@ int main(void) {
 
   wlu_freeup_spriv_bytes(WLU_LIB_SHADERC_SPRIV, shi_vert.result);
   wlu_freeup_spriv_bytes(WLU_LIB_SHADERC_SPRIV, shi_frag.result);
+  wlu_log_me(WLU_INFO, "End of shader creation");
 
   VkPipelineShaderStageCreateInfo vert_shader_stage_info = wlu_set_shader_stage_info(
     vert_shader_module, "main", VK_SHADER_STAGE_VERTEX_BIT, NULL

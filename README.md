@@ -1,7 +1,5 @@
 # Lucurious Examples
-Folder with a dump of very simple examples for liblucurious.so.
-
-**NOTE:** If memory leaks are an issue (which they are not because any and all memory allocated including heap will get returned to the system on program termination [The Linux Programming Interface By Michael Kerrisk]) use **glslangValidator** to compile shader program then **wlu_read_file()** to read the SPIR-V bytes.
+Folder with a dump of very simple examples for liblucurious.so
 
 ### To install
 
@@ -10,7 +8,7 @@ Folder with a dump of very simple examples for liblucurious.so.
 yay -S lucurious-git
 ```
 
-**Via github folder**
+**Via Github folder**
 ```bash
 git clone https://github.com/EasyIP2023/lucurious.git
 cd lucurious/
@@ -34,7 +32,9 @@ pkttyagent -p $(echo $$) | pkexec ninja uninstall -C $(pwd)/build/
 
 **Usage:**
 
-**When using acutal shader files** compile them yourself before use, using ```glslangValidator```. Lucurious has two different methods of getting SPIR-V bytes libshaderc and wlu_read_file().
+Lucurious has two different methods of getting SPIR-V bytes libshaderc and wlu_read_file().
+
+**When using actual shader files** compile them yourself before use, using ```glslangValidator```.
 
 ```bash
 glslangValidator -V shaders/shader.frag
@@ -45,13 +45,12 @@ glslangValidator -V shaders/shader.vert
 cc -Wall -Wextra `pkgconf --cflags --libs lucurious` simple_example.c -o se
 ./se
 ```
-OR!!!!!
 ```bash
 make
 ./se
 ```
 
-**Commands Line Usage**
+**Command Line Usage**
 
 Print help message
 ```bash

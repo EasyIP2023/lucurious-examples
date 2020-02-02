@@ -99,7 +99,7 @@ int main(void) {
   check_err(capabilities.minImageCount == UINT32_MAX, app, wc, NULL)
 
   /**
-  * VK_FORMAT_B8G8R8A8_UNORM will store the B, G, R and alpha channels
+  * VK_FORMAT_B8G8R8A8_UNORM will store the R, G, B and alpha channels
   * in that order with an 8 bit unsigned integer and a total of 32 bits per pixel.
   * SRGB if used for colorSpace if available, because it
   * results in more accurate perceived colors
@@ -121,10 +121,8 @@ int main(void) {
   check_err(err, app, wc, NULL)
 
   err = wlu_create_cmd_pool(app, cur_scd, cur_cmdd, app->indices.graphics_family,
-                            VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT |
-                            VK_COMMAND_POOL_CREATE_TRANSIENT_BIT);
+        VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT | VK_COMMAND_POOL_CREATE_TRANSIENT_BIT);
   check_err(err, app, wc, NULL)
-
 
   err = wlu_create_cmd_buffs(app, cur_pool, cur_scd, VK_COMMAND_BUFFER_LEVEL_PRIMARY);
   check_err(err, app, wc, NULL)
@@ -167,17 +165,6 @@ int main(void) {
 
   wlu_log_me(WLU_SUCCESS, "Successfully created render pass");
   /* ending point for render pass creation */
-
-  wlu_log_me(WLU_WARNING, "Compiling the frag code to spirv shader");
-
-  wlu_shader_info shi_frag = wlu_compile_to_spirv(VK_SHADER_STAGE_FRAGMENT_BIT,
-                             shader_frag_src, "frag.spv", "main");
-  check_err(!shi_frag.bytes, app, wc, NULL)
-
-  wlu_log_me(WLU_WARNING, "Compiling the vert code to spirv shader");
-  wlu_shader_info shi_vert = wlu_compile_to_spirv(VK_SHADER_STAGE_VERTEX_BIT,
-                             shader_vert_src, "vert.spv", "main");
-  check_err(!shi_vert.bytes, app, wc, NULL)
 
   VkImageView vkimg_attach[1];
   err = wlu_create_framebuffers(app, cur_scd, cur_gpd, 1, vkimg_attach, extent2D.width, extent2D.height, 1);
@@ -241,8 +228,16 @@ int main(void) {
   VkPipelineVertexInputStateCreateInfo vertex_input_info = wlu_set_vertex_input_state_info(
     1, &vi_binding, 2, vi_attribs
   );
-
   /* End of vertex buffer */
+
+  wlu_log_me(WLU_INFO, "Start of shader creation");
+  wlu_log_me(WLU_WARNING, "Compiling the fragment shader code to spirv bytes");
+  wlu_shader_info shi_frag = wlu_compile_to_spirv(VK_SHADER_STAGE_FRAGMENT_BIT, shader_frag_src, "frag.spv", "main");
+  check_err(!shi_frag.bytes, app, wc, NULL)
+
+  wlu_log_me(WLU_WARNING, "Compiling the vertex shader code into spirv bytes");
+  wlu_shader_info shi_vert = wlu_compile_to_spirv(VK_SHADER_STAGE_VERTEX_BIT, shader_vert_src, "vert.spv", "main");
+  check_err(!shi_vert.bytes, app, wc, NULL)
 
   VkShaderModule frag_shader_module = wlu_create_shader_module(app, shi_frag.bytes, shi_frag.byte_size);
   check_err(!frag_shader_module, app, wc, NULL)
@@ -252,6 +247,7 @@ int main(void) {
 
   wlu_freeup_spriv_bytes(WLU_LIB_SHADERC_SPRIV, shi_vert.result);
   wlu_freeup_spriv_bytes(WLU_LIB_SHADERC_SPRIV, shi_frag.result);
+  wlu_log_me(WLU_INFO, "End of shader creation");
 
   VkPipelineShaderStageCreateInfo vert_shader_stage_info = wlu_set_shader_stage_info(
     vert_shader_module, "main", VK_SHADER_STAGE_VERTEX_BIT, NULL
