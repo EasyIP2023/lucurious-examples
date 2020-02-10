@@ -29,7 +29,7 @@
 #define LUCUR_VKCOMP_MATRIX_API
 #define LUCUR_WAYLAND_API
 #define LUCUR_WAYLAND_CLIENT_API
-#define LUCUR_FILE_API
+#define LUCUR_SPIRV_API
 #include <wlu/lucurious.h>
 
 #define FREEME(app,wc) \
@@ -55,6 +55,31 @@ const char *instance_extensions[] = {
   VK_KHR_DISPLAY_EXTENSION_NAME,
   VK_EXT_DEBUG_REPORT_EXTENSION_NAME
 };
+
+const char fragShaderText[] =
+  "#version 400\n"
+  "#extension GL_ARB_separate_shader_objects : enable\n"
+  "#extension GL_ARB_shading_language_420pack : enable\n"
+  "layout (location = 0) in vec4 color;\n"
+  "layout (location = 0) out vec4 outColor;\n"
+  "void main() {\n"
+  "   outColor = color;\n"
+  "}";
+
+const char vertShaderText[] =
+  "#version 400\n"
+  "#extension GL_ARB_separate_shader_objects : enable\n"
+  "#extension GL_ARB_shading_language_420pack : enable\n"
+  "layout (std140, binding = 0) uniform bufferVals {\n"
+  "    mat4 mvp;\n"
+  "} myBufferVals;\n"
+  "layout (location = 0) in vec4 pos;\n"
+  "layout (location = 1) in vec4 inColor;\n"
+  "layout (location = 0) out vec4 outColor;\n"
+  "void main() {\n"
+  "   outColor = inColor;\n"
+  "   gl_Position = myBufferVals.mvp * pos;\n"
+  "}";
 
 vec3 eye = {-5, 3, -10};
 vec3 center = {0, 0, 0};

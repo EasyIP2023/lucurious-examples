@@ -29,7 +29,7 @@
 #define LUCUR_VKCOMP_MATRIX_API
 #define LUCUR_WAYLAND_API
 #define LUCUR_WAYLAND_CLIENT_API
-#define LUCUR_FILE_API
+#define LUCUR_SPIRV_API
 #include <wlu/lucurious.h>
 
 #define FREEME(app,wc) \
@@ -55,6 +55,27 @@ const char *instance_extensions[] = {
   VK_KHR_DISPLAY_EXTENSION_NAME,
   VK_EXT_DEBUG_REPORT_EXTENSION_NAME
 };
+
+const char shader_frag_src[] =
+  "#version 450\n"
+  "#extension GL_ARB_separate_shader_objects : enable\n"
+  "layout(location = 0) in vec3 v_Color;\n"
+  "layout(location = 0) out vec4 o_Color;\n"
+  "void main() { o_Color = vec4(v_Color, 1.0); }";
+
+const char shader_vert_src[] =
+  "#version 450\n"
+  "#extension GL_ARB_separate_shader_objects : enable\n"
+  "out gl_PerVertex {\n"
+  "   vec4 gl_Position;\n"
+  "};\n"
+  "layout(location = 0) in vec2 i_Position;\n"
+  "layout(location = 1) in vec3 i_Color;\n"
+  "layout(location = 0) out vec3 v_Color;\n"
+  "void main() {\n"
+  "   gl_Position = vec4(i_Position, 0.0, 1.0);\n"
+  "   v_Color = i_Color;\n"
+  "}";
 
 float pos_vertices[3][2] = {
   {0.0f, -0.5f},

@@ -120,11 +120,8 @@ int main(void) {
   err = wlu_create_swap_chain(app, cur_cmdd, capabilities, surface_fmt, pres_mode, extent2D.width, extent2D.height);
   check_err(err, app, wc, NULL)
 
-  err = wlu_create_cmd_pool(app, cur_scd, cur_cmdd, app->indices.graphics_family,
-                            VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT |
-                            VK_COMMAND_POOL_CREATE_TRANSIENT_BIT);
+  err = wlu_create_cmd_pool(app, cur_scd, cur_cmdd, app->indices.graphics_family, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
   check_err(err, app, wc, NULL)
-
 
   err = wlu_create_cmd_buffs(app, cur_pool, cur_scd, VK_COMMAND_BUFFER_LEVEL_PRIMARY);
   check_err(err, app, wc, NULL)
