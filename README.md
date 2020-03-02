@@ -1,5 +1,5 @@
 # Lucurious Examples
-Folder with a dump of very simple examples for liblucurious.so
+Folder with a dump of very simple examples for liblucurious.so.
 
 ### To install
 
@@ -35,7 +35,6 @@ pkttyagent -p $(echo $$) | pkexec ninja uninstall -C $(pwd)/build/
 Lucurious has two different methods got getting SPIR-V bytes **libshaderc** and **wlu_read_file()**.
 
 **When using actual shader files** compile them yourself before use, using ```glslangValidator```.
-
 ```bash
 glslangValidator -V shaders/shader.frag
 glslangValidator -V shaders/shader.vert
