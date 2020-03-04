@@ -1,5 +1,5 @@
 
-CC=cc -Wall -Wextra
+CC=cc -Wall -Wextra --std=gnu18
 FLAGS=`pkgconf --cflags --libs lucurious`
 
 all: glslang_to_spirv
