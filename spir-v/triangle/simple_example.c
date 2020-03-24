@@ -136,7 +136,8 @@ int main(void) {
   check_err(err, app, wc, NULL)
 
   /* Acquire the swapchain image in order to set its layout */
-  err = wlu_acquire_sc_image_index(app, cur_scd, &cur_buff);
+  uint32_t cur_img, cur_frame = 0;
+  err = wlu_acquire_sc_image_index(app, cur_scd, cur_frame, &cur_img);
   check_err(err, app, wc, NULL)
 
   err = wlu_create_pipeline_layout(app, cur_gpd, cur_dd, 0, NULL);

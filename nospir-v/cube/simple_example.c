@@ -175,7 +175,8 @@ int main(void) {
   check_err(err, app, wc, NULL)
 
   /* Acquire the swapchain image in order to set its layout */
-  err = wlu_acquire_sc_image_index(app, cur_scd, &cur_buff);
+  uint32_t cur_img, cur_frame = 0;
+  err = wlu_acquire_sc_image_index(app, cur_scd, cur_frame, &cur_img);
   check_err(err, app, wc, NULL)
 
   float fovy = wlu_set_fovy(45.0f);
