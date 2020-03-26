@@ -175,16 +175,15 @@ int main(void) {
   err = wlu_create_pipeline_cache(app, 0, NULL);
   check_err(err, app, wc, NULL)
 
-  /* Start of vertex buffer */
+  /* Start of staging buffer for vertex */
   vertex_2D vertices[3] = {
     {{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
     {{0.5f, 0.5f},  {0.0f, 1.0f, 0.0f}},
     {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
   };
-  /* Let the compiler get the size of your array for you. Don't hard code */
+
   VkDeviceSize vsize = sizeof(vertices);
   const uint32_t vertex_count = vsize / sizeof(vertex_2D);
-
   for (uint32_t i = 0; i < vertex_count; i++) {
     wlu_print_vector(&vertices[i].pos, WLU_VEC2);
     wlu_print_vector(&vertices[i].color, WLU_VEC3);
@@ -199,6 +198,9 @@ int main(void) {
   err = wlu_create_buff_mem_map(app, cur_bd, vertices);
   check_err(err, app, wc, NULL)
   cur_bd++;
+  /* End of staging buffer for vertex */
+
+  /* Start of vertex buffer */
 
   /**
   * Can Find in vulkan SDK doc/tutorial/html/07-init_uniform_buffer.html
@@ -216,9 +218,15 @@ int main(void) {
 
   err = wlu_create_buff_mem_map(app, cur_bd, NULL);
   check_err(err, app, wc, NULL)
+  cur_bd++;
 
   err = wlu_exec_copy_buffer(app, cur_pool, 0, 1, 0, 0, vsize);
   check_err(err, app, wc, NULL)
+  /* End of vertex buffer */
+
+  /* Destroy staging buffer as it is no longer needed */
+  wlu_vk_destroy(WLU_DESTROY_VK_BUFFER, app, app->buff_data[cur_bd-2].buff); app->buff_data[cur_bd-2].buff = VK_NULL_HANDLE;
+  wlu_vk_destroy(WLU_DESTROY_VK_MEMORY, app, app->buff_data[cur_bd-2].mem); app->buff_data[cur_bd-2].mem = VK_NULL_HANDLE;
 
   /* 0 is the binding # this is bytes between successive structs */
   VkVertexInputBindingDescription vi_binding = wlu_set_vertex_input_binding_desc(0, sizeof(vertex_2D), VK_VERTEX_INPUT_RATE_VERTEX);
@@ -230,7 +238,6 @@ int main(void) {
   VkPipelineVertexInputStateCreateInfo vertex_input_info = wlu_set_vertex_input_state_info(
     1, &vi_binding, 2, vi_attribs
   );
-  /* End of vertex buffer */
 
   wlu_log_me(WLU_INFO, "Start of shader creation");
   wlu_log_me(WLU_WARNING, "Compiling the fragment shader code to spirv bytes");
@@ -310,8 +317,8 @@ int main(void) {
   check_err(err, app, wc, frag_shader_module)
 
   wlu_log_me(WLU_SUCCESS, "graphics pipeline creation successfull");
-  wlu_freeup_shader(app, frag_shader_module); frag_shader_module = VK_NULL_HANDLE;
-  wlu_freeup_shader(app, vert_shader_module); vert_shader_module = VK_NULL_HANDLE;
+  wlu_vk_destroy(WLU_DESTROY_VK_SHADER, app, frag_shader_module); frag_shader_module = VK_NULL_HANDLE;
+  wlu_vk_destroy(WLU_DESTROY_VK_SHADER, app, vert_shader_module); vert_shader_module = VK_NULL_HANDLE;
 
   /* Ending setup for graphics pipeline */
 
@@ -356,10 +363,6 @@ int main(void) {
   check_err(err, app, wc, NULL)
 
   err = wlu_queue_present_queue(app, 1, render_sems, 1, &app->sc_data[cur_scd].swap_chain, &cur_buff, NULL);
-  check_err(err, app, wc, NULL)
-
-  /* This allows for all objects to be properly destroyed, via synchronous wait */
-  err = wlu_vk_sync(WLU_VK_WAIT_PRESENT_QUEUE, app, INDEX_IGNORE, INDEX_IGNORE);
   check_err(err, app, wc, NULL)
 
   sleep(1);
