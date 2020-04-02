@@ -71,7 +71,7 @@ int main(void) {
   err = init_buffs(app);
   check_err(err, app, wc, NULL)
 
-  err = wlu_create_instance(app, "Hello Triangle", "No Engine", 0, NULL, 4, instance_extensions);
+  err = wlu_create_instance(app, "Hello Triangle", "No Engine", 0, NULL, 3, instance_extensions);
   check_err(err, app, wc, NULL)
 
   check_err(!wlu_create_client(wc), app, wc, NULL)
@@ -151,10 +151,7 @@ int main(void) {
   );
 
   VkAttachmentReference color_attachment_ref = wlu_set_attachment_ref(0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-
-  VkSubpassDescription subpass = wlu_set_subpass_desc(
-    0, NULL, 1, &color_attachment_ref, NULL, NULL, 0, NULL
-  );
+  VkSubpassDescription subpass = wlu_set_subpass_desc(VK_PIPELINE_BIND_POINT_GRAPHICS, 0, NULL, 1, &color_attachment_ref, NULL, NULL, 0, NULL);
 
   VkSubpassDependency subdep = wlu_set_subpass_dep(
     VK_SUBPASS_EXTERNAL, 0, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,

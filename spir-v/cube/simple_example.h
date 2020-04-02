@@ -26,7 +26,7 @@
 #define SIMPLE_EXAMPLE_H
 
 #define LUCUR_VKCOMP_API
-#define LUCUR_VKCOMP_MATRIX_API
+#define LUCUR_MATH_API
 #define LUCUR_WAYLAND_API
 #define LUCUR_WAYLAND_CLIENT_API
 #define LUCUR_SPIRV_API
@@ -52,8 +52,7 @@ const char *device_extensions[] = {
 const char *instance_extensions[] = {
   VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME,
   VK_KHR_SURFACE_EXTENSION_NAME,
-  VK_KHR_DISPLAY_EXTENSION_NAME,
-  VK_EXT_DEBUG_REPORT_EXTENSION_NAME
+  VK_KHR_DISPLAY_EXTENSION_NAME
 };
 
 vec3 eye = {-5, 3, -10};
@@ -65,13 +64,6 @@ mat4 clip_matrix = {
   { 0.0f,-1.0f, 0.0f, 0.0f },
   { 0.0f, 0.0f, 0.5f, 0.0f },
   { 0.0f, 0.0f, 0.5f, 1.0f },
-};
-
-mat4 model_matrix = {
-  { 1.0f, 0.0f, 0.0f, 0.0f },
-  { 0.0f, 1.0f, 0.0f, 0.0f },
-  { 0.0f, 0.0f, 1.0f, 0.0f },
-  { 0.0f, 0.0f, 0.0f, 1.0f }
 };
 
 // { position }, { color }

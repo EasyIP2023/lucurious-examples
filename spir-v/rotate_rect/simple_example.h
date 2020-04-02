@@ -30,6 +30,8 @@
 #define LUCUR_WAYLAND_API
 #define LUCUR_WAYLAND_CLIENT_API
 #define LUCUR_SPIRV_API
+#define LUCUR_CLOCK_API
+#define CLOCK_MONOTONIC
 #include <wlu/lucurious.h>
 
 #define FREEME(app,wc) \
@@ -55,16 +57,33 @@ const char *instance_extensions[] = {
   VK_KHR_DISPLAY_EXTENSION_NAME
 };
 
-float pos_vertices[3][2] = {
-  {0.0f, -0.5f},
-  {0.5f, 0.5f},
-  {-0.5f, 0.5f}
-};
+const char spin_square_frag_text[] =
+  "#version 450\n"
+  "#extension GL_ARB_separate_shader_objects : enable\n"
+  "layout(location = 0) in vec3 v_Color;\n"
+  "layout(location = 0) out vec4 o_Color;\n"
+  "void main() { o_Color = vec4(v_Color, 1.0); }";
 
-float color_vertices[3][3] = {
-  {1.0f, 0.0f, 0.0f},
-  {0.0f, 1.0f, 0.0f},
-  {0.0f, 0.0f, 1.0f}
-};
+const char spin_square_vert_text[] =
+  "#version 450\n"
+  "#extension GL_ARB_separate_shader_objects : enable\n"
+  "#extension GL_ARB_shading_language_420pack : enable\n"
+  "layout(set = 0, binding = 0) uniform UniformBufferObject {\n"
+  "   mat4 model;\n"
+  "   mat4 view;\n"
+  "   mat4 proj;\n"
+  "} ubo;\n"
+  "layout(location = 0) in vec2 i_Position;\n"
+  "layout(location = 1) in vec3 i_Color;\n"
+  "layout(location = 0) out vec3 v_Color;\n"
+  "void main() {\n"
+  "   gl_Position = ubo.proj * ubo.view * ubo.model * vec4(i_Position, 0.0, 1.0);\n"
+  "   v_Color = i_Color;\n"
+  "}";
+
+vec3 spin_eye = {2.0f, 2.0f, 2.0f};
+vec3 spin_center = {0.0f, 0.0f, 0.0f};
+vec3 spin_up = {0.0f, 0.0f, 1.0f};
+uint16_t indices[6] = {0, 1, 2, 2, 3, 0};
 
 #endif

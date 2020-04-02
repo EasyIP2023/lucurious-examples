@@ -100,7 +100,7 @@ int main(void) {
   err = init_buffs(app);
   check_err(err, app, wc, NULL)
 
-  err = wlu_create_instance(app, "Draw Cube", "Desktop Engine", 0, NULL, 4, instance_extensions);
+  err = wlu_create_instance(app, "Draw Cube", "Desktop Engine", 0, NULL, 3, instance_extensions);
   check_err(err, app, wc, NULL)
 
   check_err(!wlu_create_client(wc), app, wc, NULL)
@@ -184,8 +184,8 @@ int main(void) {
   if (extent2D.width > extent2D.height) fovy *= hw;
   wlu_set_perspective(ubd.proj, fovy, hw, 0.1f, 100.0f);
   wlu_set_lookat(ubd.view, eye, center, up);
-  wlu_set_matrix(ubd.model, model_matrix, WLU_MAT4);
-  wlu_set_matrix(ubd.clip, clip_matrix, WLU_MAT4);
+  wlu_set_matrix(WLU_MAT4_IDENTITY, ubd.model, NULL);
+  wlu_set_matrix(WLU_MAT4, ubd.clip, clip_matrix);
   wlu_set_mvp_matrix(ubd.mvp, &ubd.clip, &ubd.proj, &ubd.view, &ubd.model);
   wlu_print_matrices();
 
@@ -252,7 +252,7 @@ int main(void) {
 
   VkAttachmentReference color_ref = wlu_set_attachment_ref(0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
   VkAttachmentReference depth_ref = wlu_set_attachment_ref(1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
-  VkSubpassDescription subpass = wlu_set_subpass_desc(0, NULL, 1, &color_ref, NULL, &depth_ref, 0, NULL);
+  VkSubpassDescription subpass = wlu_set_subpass_desc(VK_PIPELINE_BIND_POINT_GRAPHICS, 0, NULL, 1, &color_ref, NULL, &depth_ref, 0, NULL);
 
   err = wlu_create_render_pass(app, cur_gpd, 2, attachments, 1, &subpass, 0, NULL);
   check_err(err, app, wc, NULL)
