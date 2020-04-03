@@ -34,6 +34,11 @@
 #define CLOCK_MONOTONIC
 #include <wlu/lucurious.h>
 
+typedef struct _vertex_2D {
+  vec2 pos;
+  vec3 color;
+} vertex_2D;
+
 #define FREEME(app,wc) \
   do { \
     if (app) wlu_freeup_vk(app); \

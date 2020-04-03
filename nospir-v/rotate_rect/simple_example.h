@@ -34,6 +34,11 @@
 #define CLOCK_MONOTONIC
 #include <wlu/lucurious.h>
 
+typedef struct _vertex_2D {
+  vec2 pos;
+  vec3 color;
+} vertex_2D;
+
 #define FREEME(app,wc) \
   do { \
     if (app) wlu_freeup_vk(app); \
@@ -57,14 +62,14 @@ const char *instance_extensions[] = {
   VK_KHR_DISPLAY_EXTENSION_NAME
 };
 
-const char spin_square_frag_text[] =
+const char spin_square_frag_src[] =
   "#version 450\n"
   "#extension GL_ARB_separate_shader_objects : enable\n"
   "layout(location = 0) in vec3 v_Color;\n"
   "layout(location = 0) out vec4 o_Color;\n"
   "void main() { o_Color = vec4(v_Color, 1.0); }";
 
-const char spin_square_vert_text[] =
+const char spin_square_vert_src[] =
   "#version 450\n"
   "#extension GL_ARB_separate_shader_objects : enable\n"
   "#extension GL_ARB_shading_language_420pack : enable\n"

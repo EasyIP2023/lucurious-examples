@@ -191,7 +191,7 @@ int main(void) {
   VkDescriptorSetLayoutBinding desc_set = wlu_set_desc_set_layout_binding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, NULL);
   VkDescriptorSetLayoutCreateInfo desc_set_info = wlu_set_desc_set_layout_info(0, 1, &desc_set);
 
-  /* Using same layout for all obects for now */
+  /* Using same layout for all VkDescriptorSetLayout objects */
   err = wlu_create_desc_set_layouts(app, cur_dd, &desc_set_info);
   check_err(err, app, wc, NULL)
 
@@ -388,7 +388,7 @@ int main(void) {
   /* Done creating uniform buffers */
 
   VkDescriptorPoolSize pool_size = wlu_set_desc_pool_size(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, app->sc_data[cur_scd].sic);
-  err = wlu_create_desc_pool(app, cur_dd, VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT, 1, &pool_size);
+  err = wlu_create_desc_pool(app, cur_dd, 0, 1, &pool_size);
   check_err(err, app, wc, NULL)
 
   err = wlu_create_desc_set(app, cur_dd);
@@ -447,12 +447,12 @@ int main(void) {
   wlu_set_perspective(ubd.proj, fovy, hw, 0.1f, 10.0f);
   wlu_set_lookat(ubd.view, spin_eye, spin_center, spin_up);
   ubd.proj[1][1] *= -1; /* Invert Y-Coordinate */
-    
+
   VkCommandBuffer cmd_buffs[app->sc_data[cur_scd].sic];
   VkSemaphore acquire_sems[MAX_FRAMES], render_sems[MAX_FRAMES];
   VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 
-  for (int c = 0; c < 9000; c++) {
+  for (uint32_t c = 0; c < 9000; c++) {
     /* set fence to signal state */
     err = wlu_vk_sync(WLU_VK_WAIT_RENDER_FENCE, app, cur_scd, cur_frame);
     check_err(err, app, wc, NULL)

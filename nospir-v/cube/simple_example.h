@@ -32,6 +32,11 @@
 #define LUCUR_SPIRV_API
 #include <wlu/lucurious.h>
 
+typedef struct _vertex_3D {
+  vec4 pos;
+  vec4 color;
+} vertex_3D;
+
 #define FREEME(app,wc) \
   do { \
     if (app) wlu_freeup_vk(app); \
