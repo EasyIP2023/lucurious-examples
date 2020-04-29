@@ -126,7 +126,7 @@ int main(void) {
   check_err(err, app, wc, NULL)
 
   /* Does not check if image count exceeds the max */
-  err = wlu_create_swap_chain(app, cur_scd, capabilities, surface_fmt, pres_mode, extent2D.width, extent2D.height);
+  err = wlu_create_swap_chain(app, cur_scd, capabilities, surface_fmt, pres_mode, extent2D.width, extent2D.height, 1, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
   check_err(err, app, wc, NULL)
 
   err = wlu_create_cmd_pool(app, cur_scd, cur_cmdd, app->indices.graphics_family, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
@@ -295,6 +295,14 @@ int main(void) {
     wlu_print_vector(WLU_VEC3, &vertices[i].color);
   }
 
+  /**
+  * Can Find in vulkan SDK doc/tutorial/html/07-init_uniform_buffer.html
+  * The VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT communicates that the memory
+  * should be mapped so that the CPU (host) can access it.
+  * The VK_MEMORY_PROPERTY_HOST_COHERENT_BIT requests that the
+  * writes to the memory by the host are visible to the device
+  * (and vice-versa) without the need to flush memory caches.
+  */
   err = wlu_create_vk_buffer(
     app, cur_bd, vsize, 0, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
     VK_SHARING_MODE_EXCLUSIVE, 0, NULL, 's',
@@ -308,15 +316,6 @@ int main(void) {
   /* End of staging buffer for vertex */
 
   /* Start of vertex buffer */
-
-  /**
-  * Can Find in vulkan SDK doc/tutorial/html/07-init_uniform_buffer.html
-  * The VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT communicates that the memory
-  * should be mapped so that the CPU (host) can access it.
-  * The VK_MEMORY_PROPERTY_HOST_COHERENT_BIT requests that the
-  * writes to the memory by the host are visible to the device
-  * (and vice-versa) without the need to flush memory caches.
-  */
   err = wlu_create_vk_buffer(
     app, cur_bd, vsize, 0,
     VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
@@ -329,7 +328,7 @@ int main(void) {
   check_err(err, app, wc, NULL)
   cur_bd++;
 
-  err = wlu_exec_copy_buffer(app, cur_pool, 0, 1, 0, 0, vsize);
+  err = wlu_exec_copy_buffer(app, cur_pool, cur_bd-2, cur_bd-1, 0, 0, vsize);
   check_err(err, app, wc, NULL)
   /* End of vertex buffer */
 
@@ -365,7 +364,7 @@ int main(void) {
   check_err(err, app, wc, NULL)
   cur_bd++;
 
-  err = wlu_exec_copy_buffer(app, cur_pool, 2, 3, 0, 0, isize);
+  err = wlu_exec_copy_buffer(app, cur_pool, cur_bd-2, cur_bd-1, 0, 0, isize);
   check_err(err, app, wc, NULL)
   /* End of index buffer */
 
@@ -455,7 +454,7 @@ int main(void) {
   VkSemaphore acquire_sems[MAX_FRAMES], render_sems[MAX_FRAMES];
   VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 
-  for (uint32_t c = 0; c < 9000; c++) {
+  for (uint32_t c = 0; c < 20000; c++) {
     /* set fence to signal state */
     err = wlu_vk_sync(WLU_VK_WAIT_RENDER_FENCE, app, cur_scd, cur_frame);
     check_err(err, app, wc, NULL)

@@ -16,8 +16,7 @@ mkdir -v build
 meson build
 sudo ninja install -C build
 
-# OR
-# Encase of PolicyKit daemon errors
+# OR: Encase of PolicyKit daemon errors
 pkttyagent -p $(echo $$) | pkexec ninja install -C $(pwd)/build/
 ```
 
@@ -25,8 +24,7 @@ pkttyagent -p $(echo $$) | pkexec ninja install -C $(pwd)/build/
 ```bash
 sudo ninja uninstall -C build
 
-# OR
-# Encase of PolicyKit daemon errors
+# OR: Encase of PolicyKit daemon errors
 pkttyagent -p $(echo $$) | pkexec ninja uninstall -C $(pwd)/build/
 ```
 
@@ -35,14 +33,10 @@ pkttyagent -p $(echo $$) | pkexec ninja uninstall -C $(pwd)/build/
 Lucurious has two different methods got getting SPIR-V bytes **libshaderc** and **wlu_read_file()**.
 
 **When using actual shader files** compile them yourself before use, using ```glslangValidator```.
+
 ```bash
 glslangValidator -V shaders/shader.frag
 glslangValidator -V shaders/shader.vert
-```
-
-```bash
-cc -Wall -Wextra `pkgconf --cflags --libs lucurious` simple_example.c -o se
-./se
 ```
 ```bash
 make
