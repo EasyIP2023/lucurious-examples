@@ -303,9 +303,8 @@ int main(void) {
   * writes to the memory by the host are visible to the device
   * (and vice-versa) without the need to flush memory caches.
   */
-  err = wlu_create_vk_buffer(
-    app, cur_bd, vsize, 0, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-    VK_SHARING_MODE_EXCLUSIVE, 0, NULL, 's',
+  err = wlu_create_vk_buffer(app, cur_bd, vsize, 0,
+    VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_SHARING_MODE_EXCLUSIVE, 0, NULL, 's',
     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
   );
   check_err(err, app, wc, NULL)
@@ -316,11 +315,9 @@ int main(void) {
   /* End of staging buffer for vertex */
 
   /* Start of vertex buffer */
-  err = wlu_create_vk_buffer(
-    app, cur_bd, vsize, 0,
+  err = wlu_create_vk_buffer(app, cur_bd, vsize, 0,
     VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-    VK_SHARING_MODE_EXCLUSIVE, 0, NULL, 'v',
-    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+    VK_SHARING_MODE_EXCLUSIVE, 0, NULL, 'v', VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
   );
   check_err(err, app, wc, NULL)
 
@@ -396,16 +393,6 @@ int main(void) {
   err = wlu_create_desc_set(app, cur_dd);
   check_err(err, app, wc, NULL)
 
-  /* set uniform buffer VKBufferInfos */
-  VkDescriptorBufferInfo buff_info;
-  VkWriteDescriptorSet write;
-  for (uint32_t i = 0; i < app->sc_data[cur_scd].sic; i++) {
-    buff_info = wlu_set_desc_buff_info(app->buff_data[i+cur_bd].buff, 0, VK_WHOLE_SIZE);
-    write = wlu_write_desc_set(app->desc_data[cur_dd].desc_set[i], 0, 0, 1,
-            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, NULL, &buff_info, NULL);
-    wlu_update_desc_sets(app, 1, &write, 0, NULL);
-  }
-
   wlu_log_me(WLU_SUCCESS, "ALL ALLOCATED BUFFERS");
   for (uint32_t i = 0; i < app->bdc; i++) {
     wlu_log_me(WLU_INFO, "app->buff_data[%d].name: %c", i, app->buff_data[i].name);
@@ -424,8 +411,15 @@ int main(void) {
   /* Drawing will start when you begin a render pass */
   wlu_exec_begin_render_pass(app, cur_pool, cur_scd, cur_gpd, 0, 0, extent2D.width, extent2D.height, 2, &clear_value, VK_SUBPASS_CONTENTS_INLINE);
 
+  /* set uniform buffer VKBufferInfos */
+  VkDescriptorBufferInfo buff_info;
+  VkWriteDescriptorSet write;
   const VkDeviceSize offsets[1] = {0}; /* Bind and draw in all available command buffers */
   for (uint32_t i = 0; i < app->sc_data[cur_scd].sic; i++) {
+    buff_info = wlu_set_desc_buff_info(app->buff_data[i+cur_bd].buff, 0, VK_WHOLE_SIZE);
+    write = wlu_write_desc_set(app->desc_data[cur_dd].desc_set[i], 0, 0, 1,
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, NULL, &buff_info, NULL);
+    wlu_update_desc_sets(app, 1, &write, 0, NULL);
     wlu_cmd_set_viewport(app, &viewport, cur_pool, i, 0, 1);
     wlu_bind_pipeline(app, cur_pool, i, VK_PIPELINE_BIND_POINT_GRAPHICS, app->gp_data[cur_gpd].graphics_pipelines[0]);
     wlu_bind_vertex_buffs_to_cmd_buff(app, cur_pool, i, 0, 1, &app->buff_data[1].buff, offsets);

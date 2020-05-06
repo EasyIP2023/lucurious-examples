@@ -190,9 +190,8 @@ int main(void) {
   wlu_print_matrices();
 
   /* Create uniform buffer that has the transformation matrices (for the vertex shader) */
-  err = wlu_create_vk_buffer(
-    app, cur_bd, sizeof(ubd.mvp), 0, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-    VK_SHARING_MODE_EXCLUSIVE, 0, NULL, 'u',
+  err = wlu_create_vk_buffer(app, cur_bd, sizeof(ubd.mvp), 0,
+    VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_SHARING_MODE_EXCLUSIVE, 0, NULL, 'u',
     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
   );
   check_err(err, app, wc, NULL)
