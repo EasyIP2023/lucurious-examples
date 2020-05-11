@@ -82,7 +82,7 @@ int main(void) {
   err = init_buffs(app);
   check_err(err, app, wc, NULL)
 
-  err = wlu_create_instance(app, "Rotate Rect", "No Engine", 0, NULL, 3, instance_extensions);
+  err = wlu_create_instance(app, "Rotate Rect", "No Engine", 0, NULL, sizeof(instance_extensions) / sizeof(const char*), instance_extensions);
   check_err(err, app, wc, NULL)
 
   check_err(!wlu_create_client(wc), app, wc, NULL)
@@ -100,7 +100,7 @@ int main(void) {
   err = wlu_create_queue_families(app, VK_QUEUE_GRAPHICS_BIT);
   check_err(err, app, wc, NULL)
 
-  err = wlu_create_logical_device(app, &device_feats, 1, 0, NULL, 1, device_extensions);
+  err = wlu_create_logical_device(app, &device_feats, 1, 0, NULL, sizeof(device_extensions) / sizeof(const char*), device_extensions);
   check_err(err, app, wc, NULL)
 
   VkSurfaceCapabilitiesKHR capabilities = wlu_get_physical_device_surface_capabilities(app);
