@@ -25,9 +25,10 @@
 #ifndef SIMPLE_EXAMPLE_H
 #define SIMPLE_EXAMPLE_H
 
+#include "client.h"
+
 #define LUCUR_VKCOMP_API
 #define LUCUR_MATH_API
-#define LUCUR_WAYLAND_CLIENT_API
 #define LUCUR_SPIRV_API
 #define LUCUR_CLOCK_API
 #define CLOCK_MONOTONIC

@@ -22,54 +22,26 @@
 * THE SOFTWARE.
 */
 
-#ifndef SIMPLE_EXAMPLE_H
-#define SIMPLE_EXAMPLE_H
+#ifndef CLIENT_H
+#define CLIENT_H
 
-#include "client.h"
+#include <wayland-client.h>
+#include <wayland-client-protocol.h>
 
-#define LUCUR_VKCOMP_API
-#define LUCUR_MATH_API
-#define LUCUR_SPIRV_API
-#include <wlu/lucurious.h>
+typedef struct _wclient {
+  struct wl_display *display;
+  struct wl_compositor *compositor;
+  struct wl_registry *registry;
 
-typedef struct _vertex_2D {
-  vec2 pos;
-  vec3 color;
-} vertex_2D;
+  struct wl_surface *surface;
+  struct xdg_surface *xdg_surface;
 
-#define FREEME(app,wc) \
-  do { \
-    if (app) wlu_freeup_vk(app); \
-    if (wc) wlu_freeup_wc(wc); \
-    wlu_release_blocks(); \
-  } while(0);
+  struct xdg_wm_base *shell;
+  struct xdg_toplevel *xdg_toplevel;
+} wclient;
 
-#define check_err(err,app,wc,shader) \
-  do { \
-    if (!shader && err) wlu_vk_destroy(WLU_DESTROY_VK_SHADER, app, shader); \
-    if (err) { FREEME(app, wc) exit(-1); } \
-  } while(0);
-
-const char *device_extensions[] = {
-  VK_KHR_SWAPCHAIN_EXTENSION_NAME
-};
-
-const char *instance_extensions[] = {
-  VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME,
-  VK_KHR_SURFACE_EXTENSION_NAME,
-  VK_KHR_DISPLAY_EXTENSION_NAME
-};
-
-float pos_vertices[3][2] = {
-  {0.0f, -0.5f},
-  {0.5f, 0.5f},
-  {-0.5f, 0.5f}
-};
-
-float color_vertices[3][3] = {
-  {1.0f, 0.0f, 0.0f},
-  {0.0f, 1.0f, 0.0f},
-  {0.0f, 0.0f, 1.0f}
-};
+wclient *wlu_init_wc();
+void wlu_freeup_wc(wclient *wc);
+bool wlu_create_client(wclient *wc);
 
 #endif

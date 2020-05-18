@@ -34,8 +34,8 @@
 #define HEIGHT 600
 
 static wlu_otma_mems ma = {
-  .vkcomp_cnt = 10, .wclient_cnt = 10, .desc_cnt = 10,
-  .gp_cnt = 10, .si_cnt = 15, .scd_cnt = 10, .gpd_cnt = 10,
+  .vkcomp_cnt = 10, .desc_cnt = 10, .gp_cnt = 10,
+  .si_cnt = 15, .scd_cnt = 10, .gpd_cnt = 10,
   .cmdd_cnt = 10, .bd_cnt = 10
 };
 
