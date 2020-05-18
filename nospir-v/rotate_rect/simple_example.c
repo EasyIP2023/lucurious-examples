@@ -82,7 +82,7 @@ int main(void) {
   err = init_buffs(app);
   check_err(err, app, wc, NULL)
 
-  err = wlu_create_instance(app, "Rotate Rect", "No Engine", 0, NULL, sizeof(instance_extensions) / sizeof(const char*), instance_extensions);
+  err = wlu_create_instance(app, "Rotate Rect", "No Engine", 0, NULL, ARR_LEN(instance_extensions), instance_extensions);
   check_err(err, app, wc, NULL)
 
   check_err(!wlu_create_client(wc), app, wc, NULL)
@@ -100,7 +100,7 @@ int main(void) {
   err = wlu_create_queue_families(app, VK_QUEUE_GRAPHICS_BIT);
   check_err(err, app, wc, NULL)
 
-  err = wlu_create_logical_device(app, &device_feats, 1, 0, NULL, sizeof(device_extensions) / sizeof(const char*), device_extensions);
+  err = wlu_create_logical_device(app, &device_feats, 1, 0, NULL, ARR_LEN(device_extensions), device_extensions);
   check_err(err, app, wc, NULL)
 
   VkSurfaceCapabilitiesKHR capabilities = wlu_get_physical_device_surface_capabilities(app);
@@ -288,7 +288,7 @@ int main(void) {
   };
 
   VkDeviceSize vsize = sizeof(vertices);
-  const uint32_t vertex_count = vsize / sizeof(vertex_2D);
+  const uint32_t vertex_count = ARR_LEN(vertices);
 
   for (uint32_t i = 0; i < vertex_count; i++) {
     wlu_print_vector(WLU_VEC2, &vertices[i].pos);
@@ -335,7 +335,7 @@ int main(void) {
 
   /* Start of staging buffer for index */
   VkDeviceSize isize = sizeof(indices);
-  const uint32_t index_count = isize / sizeof(uint16_t); /* 2 bytes */
+  const uint32_t index_count = ARR_LEN(indices);
   err = wlu_create_vk_buffer(
     app, cur_bd, isize, 0, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
     VK_SHARING_MODE_EXCLUSIVE, 0, NULL, 's',

@@ -100,7 +100,7 @@ int main(void) {
   err = init_buffs(app);
   check_err(err, app, wc, NULL)
 
-  err = wlu_create_instance(app, "Draw Cube", "Desktop Engine", 0, NULL, sizeof(instance_extensions) / sizeof(const char*), instance_extensions);
+  err = wlu_create_instance(app, "Draw Cube", "Desktop Engine", 0, NULL, ARR_LEN(instance_extensions), instance_extensions);
   check_err(err, app, wc, NULL)
 
   check_err(!wlu_create_client(wc), app, wc, NULL)
@@ -118,7 +118,7 @@ int main(void) {
   err = wlu_create_queue_families(app, VK_QUEUE_GRAPHICS_BIT);
   check_err(err, app, wc, NULL)
 
-  err = wlu_create_logical_device(app, &device_feats, 1, 0, NULL, sizeof(device_extensions) / sizeof(const char*), device_extensions);
+  err = wlu_create_logical_device(app, &device_feats, 1, 0, NULL, ARR_LEN(device_extensions), device_extensions);
   check_err(err, app, wc, NULL)
 
   VkSurfaceCapabilitiesKHR capabilities = wlu_get_physical_device_surface_capabilities(app);
@@ -391,8 +391,7 @@ int main(void) {
   check_err(err, app, wc, NULL)
 
   /* Vertex buffer cannot be binded until we begin a renderpass */
-  wlu_exec_begin_render_pass(app, cur_pool, cur_scd, cur_gpd, 0, 0, extent2D.width,
-                             extent2D.height, 2, clear_values, VK_SUBPASS_CONTENTS_INLINE);
+  wlu_exec_begin_render_pass(app, cur_pool, cur_scd, cur_gpd, 0, 0, extent2D.width, extent2D.height, 2, clear_values, VK_SUBPASS_CONTENTS_INLINE);
   wlu_bind_pipeline(app, cur_pool, cur_buff, VK_PIPELINE_BIND_POINT_GRAPHICS, app->gp_data[cur_gpd].graphics_pipelines[0]);
   wlu_bind_desc_sets(app, cur_pool, cur_buff, cur_gpd, VK_PIPELINE_BIND_POINT_GRAPHICS, 0, 1, &app->desc_data[cur_dd].desc_set[0], 0, NULL);
 
@@ -406,7 +405,7 @@ int main(void) {
   wlu_cmd_set_viewport(app, &viewport, cur_pool, cur_buff, 0, 1);
   wlu_cmd_set_scissor(app, &scissor, cur_pool, cur_buff, 0, 1);
 
-  const uint32_t vertex_count = sizeof(vertices) / sizeof(vertices[0]);
+  const uint32_t vertex_count = ARR_LEN(vertices);
   wlu_cmd_draw(app, cur_pool, cur_buff, vertex_count, 1, 0, 0);
 
   wlu_exec_stop_render_pass(app, cur_pool, cur_scd);
