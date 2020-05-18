@@ -25,6 +25,8 @@
 #ifndef CLIENT_H
 #define CLIENT_H
 
+#define UNUSED __attribute__((unused))
+
 #include <wayland-client.h>
 #include <wayland-client-protocol.h>
 
