@@ -30,7 +30,7 @@
 #define LUCUR_VKCOMP_API
 #define LUCUR_MATH_API
 #define LUCUR_SPIRV_API
-#include <wlu/lucurious.h>
+#include <dluc/lucurious.h>
 
 typedef struct _vertex_3D {
   vec4 pos;
@@ -39,14 +39,14 @@ typedef struct _vertex_3D {
 
 #define FREEME(app,wc) \
   do { \
-    if (app) wlu_freeup_vk(app); \
-    if (wc) wlu_freeup_wc(wc); \
-    wlu_release_blocks(); \
+    if (app) dlu_freeup_vk(app); \
+    if (wc) dlu_freeup_wc(wc); \
+    dlu_release_blocks(); \
   } while(0);
 
 #define check_err(err,app,wc,shader) \
   do { \
-    if (!shader && err) wlu_vk_destroy(WLU_DESTROY_VK_SHADER, app, shader); \
+    if (!shader && err) dlu_vk_destroy(DLU_DESTROY_VK_SHADER, app, shader); \
     if (err) { FREEME(app, wc) exit(-1); } \
   } while(0);
 

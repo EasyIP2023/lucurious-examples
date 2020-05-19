@@ -30,7 +30,7 @@ pkttyagent -p $(echo $$) | pkexec ninja uninstall -C $(pwd)/build/
 
 **Usage:**
 
-Lucurious has two different methods got getting SPIR-V bytes **libshaderc** and **wlu_read_file()**.
+Lucurious has two different methods got getting SPIR-V bytes **libshaderc** and **dlu_read_file()**.
 
 **When using actual shader files** compile them yourself before use, using ```glslangValidator```.
 

@@ -74,13 +74,13 @@ static const struct wl_registry_listener registry_listener = {
   global_registry_remover
 };
 
-wclient *wlu_init_wc() {
+wclient *dlu_init_wc() {
   wclient *wc = calloc(1, sizeof(wclient));
   if (!wc) fprintf(stderr, "[x] calloc: %s", strerror(errno));
   return wc;
 }
 
-void wlu_freeup_wc(wclient *wc) {
+void dlu_freeup_wc(wclient *wc) {
   if (wc->xdg_surface)
     xdg_surface_destroy(wc->xdg_surface);
   if (wc->surface)
@@ -98,7 +98,7 @@ void wlu_freeup_wc(wclient *wc) {
   free(wc);
 }
 
-bool wlu_create_client(wclient *wc) {
+bool dlu_create_client(wclient *wc) {
   int err = 0;
 
   /* establish connection to wayland server */
