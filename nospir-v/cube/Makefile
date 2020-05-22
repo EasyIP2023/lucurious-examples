@@ -6,7 +6,7 @@ WAYLAND_SCANNER=$(shell pkg-config --variable=wayland_scanner wayland-scanner)
 XDG_SHELL_PROTO=$(WAYLAND_PROTOS_DIR)/stable/xdg-shell/xdg-shell.xml
 XDG_SHELL_FILES=xdg-shell-client-protocol.h xdg-shell-protocol.c
 
-CC=cc --std=gnu18 -Wall -Wextra -Werror -Wno-unused-parameter -g
+CC=cc --std=gnu18 -Wall -Wextra -Werror -g
 LUCURIOUS_FLAGS=$(shell pkg-config lucurious --cflags --libs)
 
 all: se

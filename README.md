@@ -1,4 +1,7 @@
 # Lucurious Examples
+
+NOTE: The wayland client code is a modified version of what [Simon Ser did here](https://github.com/emersion/hello-wayland/). It will be removed.
+
 Folder with a dump of very simple examples for liblucurious.so.
 
 ### To install
