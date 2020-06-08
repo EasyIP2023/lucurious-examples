@@ -51,19 +51,19 @@ static bool init_buffs(vkcomp *app) {
   bool err;
 
   err = dlu_otba(DLU_BUFF_DATA, app, INDEX_IGNORE, 9);
-  if (err) return err;
+  if (!err) return err;
 
   err = dlu_otba(DLU_SC_DATA, app, INDEX_IGNORE, 1);
-  if (err) return err;
+  if (!err) return err;
 
   err = dlu_otba(DLU_GP_DATA, app, INDEX_IGNORE, 1);
-  if (err) return err;
+  if (!err) return err;
 
   err = dlu_otba(DLU_CMD_DATA, app, INDEX_IGNORE, 1);
-  if (err) return err;
+  if (!err) return err;
 
   err = dlu_otba(DLU_DESC_DATA, app, INDEX_IGNORE, 1);
-  if (err) return err;
+  if (!err) return err;
 
   return err;
 }
@@ -80,7 +80,7 @@ int main(void) {
   check_err(!app, NULL, wc, NULL)
 
   err = init_buffs(app);
-  check_err(err, app, wc, NULL)
+  check_err(!err, app, wc, NULL)
 
   err = dlu_create_instance(app, "Rotate Rect", "No Engine", 0, NULL, ARR_LEN(instance_extensions), instance_extensions);
   check_err(err, app, wc, NULL)
@@ -123,7 +123,7 @@ int main(void) {
 
   uint32_t cur_scd = 0, cur_pool = 0, cur_gpd = 0, cur_bd = 0, cur_cmdd = 0, cur_dd = 0;
   err = dlu_otba(DLU_SC_DATA_MEMS, app, cur_scd, capabilities.minImageCount);
-  check_err(err, app, wc, NULL)
+  check_err(!err, app, wc, NULL)
 
   /* Does not check if image count exceeds the max */
   err = dlu_create_swap_chain(app, cur_scd, capabilities, surface_fmt, pres_mode, extent2D.width, extent2D.height, 1, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
@@ -185,7 +185,7 @@ int main(void) {
 
   /* This also sets the descriptor count */
   err = dlu_otba(DLU_DESC_DATA_MEMS, app, cur_dd, app->sc_data[cur_scd].sic);
-  check_err(err, app, wc, NULL)
+  check_err(!err, app, wc, NULL)
 
   /* MVP transformation is in a single uniform buffer variable (not an array), So descriptor count is 1 */
   VkDescriptorSetLayoutBinding desc_set = dlu_set_desc_set_layout_binding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, NULL);
@@ -266,7 +266,7 @@ int main(void) {
   );
 
   err = dlu_otba(DLU_GP_DATA_MEMS, app, cur_dd, 1);
-  check_err(err, app, wc, NULL)
+  check_err(!err, app, wc, NULL)
 
   err = dlu_create_graphics_pipelines(app, cur_gpd, 2, shader_stages,
     &vertex_input_info, &input_assembly, VK_NULL_HANDLE, &view_port_info,
