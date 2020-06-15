@@ -36,11 +36,17 @@
 static dlu_otma_mems ma = {
   .vkcomp_cnt = 1, .gp_cnt = 1, .si_cnt = 5,
   .scd_cnt = 1, .gpd_cnt = 1, .cmdd_cnt = 1,
-  .bd_cnt = 2
+  .bd_cnt = 2, .ld_cnt = 1, .pd_cnt = 1
 };
 
 static bool init_buffs(vkcomp *app) {
   bool err;
+
+  err = dlu_otba(DLU_PD_DATA, app, INDEX_IGNORE, 1);
+  if (!err) return err;
+
+  err = dlu_otba(DLU_LD_DATA, app, INDEX_IGNORE, 1);
+  if (!err) return err;
 
   err = dlu_otba(DLU_BUFF_DATA, app, INDEX_IGNORE, 2);
   if (!err) return err;
@@ -83,16 +89,17 @@ int main(void) {
   /* This will get the physical device, it's properties, and features */
   VkPhysicalDeviceProperties device_props;
   VkPhysicalDeviceFeatures device_feats;
-  err = dlu_create_physical_device(app, VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU, &device_props, &device_feats);
+  uint32_t cur_ld = 0, cur_pd = 0;
+  err = dlu_create_physical_device(app, cur_pd, VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU, &device_props, &device_feats);
   check_err(err, app, wc, NULL)
 
-  err = dlu_create_queue_families(app, VK_QUEUE_GRAPHICS_BIT);
+  err = dlu_create_queue_families(app, cur_pd, VK_QUEUE_GRAPHICS_BIT);
   check_err(err, app, wc, NULL)
 
-  err = dlu_create_logical_device(app, &device_feats, 1, 0, NULL, ARR_LEN(device_extensions), device_extensions);
+  err = dlu_create_logical_device(app, cur_pd, cur_ld, &device_feats, 1, 0, NULL, ARR_LEN(device_extensions), device_extensions);
   check_err(err, app, wc, NULL)
 
-  VkSurfaceCapabilitiesKHR capabilities = dlu_get_physical_device_surface_capabilities(app);
+  VkSurfaceCapabilitiesKHR capabilities = dlu_get_physical_device_surface_capabilities(app, cur_pd);
   check_err(capabilities.minImageCount == UINT32_MAX, app, wc, NULL)
 
   /**
@@ -101,10 +108,10 @@ int main(void) {
   * SRGB if used for colorSpace if available, because it
   * results in more accurate perceived colors
   */
-  VkSurfaceFormatKHR surface_fmt = dlu_choose_swap_surface_format(app, VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR);
+  VkSurfaceFormatKHR surface_fmt = dlu_choose_swap_surface_format(app, cur_pd, VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR);
   check_err(surface_fmt.format == VK_FORMAT_UNDEFINED, app, wc, NULL)
 
-  VkPresentModeKHR pres_mode = dlu_choose_swap_present_mode(app);
+  VkPresentModeKHR pres_mode = dlu_choose_swap_present_mode(app, cur_pd);
   check_err(pres_mode == VK_PRESENT_MODE_MAX_ENUM_KHR, app, wc, NULL)
 
   VkExtent2D extent2D = dlu_choose_swap_extent(capabilities, WIDTH, HEIGHT);
@@ -114,10 +121,10 @@ int main(void) {
   err = dlu_otba(DLU_SC_DATA_MEMS, app, cur_scd, capabilities.minImageCount);
   check_err(!err, app, wc, NULL)
 
-  err = dlu_create_swap_chain(app, cur_cmdd, capabilities, surface_fmt, pres_mode, extent2D.width, extent2D.height, 1, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
+  err = dlu_create_swap_chain(app, cur_ld, cur_cmdd, capabilities, surface_fmt, pres_mode, extent2D.width, extent2D.height, 1, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
   check_err(err, app, wc, NULL)
 
-  err = dlu_create_cmd_pool(app, cur_scd, cur_cmdd, app->indices.graphics_family, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
+  err = dlu_create_cmd_pool(app, cur_ld, cur_scd, cur_cmdd, app->pd_data[cur_pd].gfam_idx, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
   check_err(err, app, wc, NULL)
 
   err = dlu_create_cmd_buffs(app, cur_pool, cur_scd, VK_COMMAND_BUFFER_LEVEL_PRIMARY);
@@ -140,7 +147,7 @@ int main(void) {
   err = dlu_acquire_sc_image_index(app, cur_scd, cur_frame, &cur_img);
   check_err(err, app, wc, NULL)
 
-  err = dlu_create_pipeline_layout(app, cur_gpd, cur_dd, 0, NULL);
+  err = dlu_create_pipeline_layout(app, cur_ld, cur_gpd, cur_dd, 0, NULL);
   check_err(err, app, wc, NULL)
 
   /* Starting point for render pass creation */
@@ -153,10 +160,9 @@ int main(void) {
   VkAttachmentReference color_attachment_ref = dlu_set_attachment_ref(0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
   VkSubpassDescription subpass = dlu_set_subpass_desc(VK_PIPELINE_BIND_POINT_GRAPHICS, 0, NULL, 1, &color_attachment_ref, NULL, NULL, 0, NULL);
 
-  VkSubpassDependency subdep = dlu_set_subpass_dep(
-    VK_SUBPASS_EXTERNAL, 0, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0,
-    VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, 0
+  VkSubpassDependency subdep = dlu_set_subpass_dep(VK_SUBPASS_EXTERNAL, 0,
+    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+    0, VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, 0
   );
 
   err = dlu_create_render_pass(app, cur_gpd, 1, &color_attachment, 1, &subpass, 1, &subdep);
@@ -169,21 +175,22 @@ int main(void) {
   err = dlu_create_framebuffers(app, cur_scd, cur_gpd, 1, vkimg_attach, extent2D.width, extent2D.height, 1);
   check_err(err, app, wc, NULL)
 
-  err = dlu_create_pipeline_cache(app, 0, NULL);
+  err = dlu_create_pipeline_cache(app, cur_ld, 0, NULL);
   check_err(err, app, wc, NULL)
 
   /* Start of staging buffer for vertex */
-  vertex_2D vertices[3] = {
+  vertex_2D tri_verts[3] = {
     {{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
     {{0.5f, 0.5f},  {0.0f, 1.0f, 0.0f}},
     {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
   };
+  /* Let the compiler get the size of your array for you. Don't hard code */
+  VkDeviceSize vsize = sizeof(tri_verts);
+  const uint32_t vertex_count = ARR_LEN(tri_verts);
 
-  VkDeviceSize vsize = sizeof(vertices);
-  const uint32_t vertex_count = ARR_LEN(vertices);
   for (uint32_t i = 0; i < vertex_count; i++) {
-    dlu_print_vector(DLU_VEC2, &vertices[i].pos);
-    dlu_print_vector(DLU_VEC3, &vertices[i].color);
+    dlu_print_vector(DLU_VEC2, &tri_verts[i].pos);
+    dlu_print_vector(DLU_VEC3, &tri_verts[i].color);
   }
 
   /**
@@ -194,26 +201,24 @@ int main(void) {
   * writes to the memory by the host are visible to the device
   * (and vice-versa) without the need to flush memory caches.
   */
-  err = dlu_create_vk_buffer(app, cur_bd, vsize, 0,
+  err = dlu_create_vk_buffer(app, cur_ld, cur_bd, vsize, 0,
     VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_SHARING_MODE_EXCLUSIVE, 0, NULL, 's',
     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
   );
   check_err(err, app, wc, NULL)
 
-  err = dlu_create_vk_buff_mem_map(app, cur_bd, vertices);
+  err = dlu_create_vk_buff_mem_map(app, cur_bd, tri_verts);
   check_err(err, app, wc, NULL)
   cur_bd++;
   /* End of staging buffer for vertex */
 
   /* Start of vertex buffer */
-  err = dlu_create_vk_buffer(app, cur_bd, vsize, 0,
+  err = dlu_create_vk_buffer(app, cur_ld, cur_bd, vsize, 0,
     VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
     VK_SHARING_MODE_EXCLUSIVE, 0, NULL, 'v', VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
   );
   check_err(err, app, wc, NULL)
 
-  err = dlu_create_vk_buff_mem_map(app, cur_bd, NULL);
-  check_err(err, app, wc, NULL)
   cur_bd++;
 
   err = dlu_exec_copy_buffer(app, cur_pool, cur_bd-2, cur_bd-1, 0, 0, vsize);
@@ -221,8 +226,8 @@ int main(void) {
   /* End of vertex buffer */
 
   /* Destroy staging buffer as it is no longer needed */
-  dlu_vk_destroy(DLU_DESTROY_VK_BUFFER, app, app->buff_data[cur_bd-2].buff); app->buff_data[cur_bd-2].buff = VK_NULL_HANDLE;
-  dlu_vk_destroy(DLU_DESTROY_VK_MEMORY, app, app->buff_data[cur_bd-2].mem); app->buff_data[cur_bd-2].mem = VK_NULL_HANDLE;
+  dlu_vk_destroy(DLU_DESTROY_VK_BUFFER, app, cur_ld, app->buff_data[cur_bd-2].buff); app->buff_data[cur_bd-2].buff = VK_NULL_HANDLE;
+  dlu_vk_destroy(DLU_DESTROY_VK_MEMORY, app, cur_ld, app->buff_data[cur_bd-2].mem); app->buff_data[cur_bd-2].mem = VK_NULL_HANDLE;
 
   /* 0 is the binding # this is bytes between successive structs */
   VkVertexInputBindingDescription vi_binding = dlu_set_vertex_input_binding_desc(0, sizeof(vertex_2D), VK_VERTEX_INPUT_RATE_VERTEX);
@@ -244,10 +249,10 @@ int main(void) {
   dlu_shader_info shi_vert = dlu_compile_to_spirv(VK_SHADER_STAGE_VERTEX_BIT, shader_vert_src, "vert.spv", "main");
   check_err(!shi_vert.bytes, app, wc, NULL)
 
-  VkShaderModule frag_shader_module = dlu_create_shader_module(app, shi_frag.bytes, shi_frag.byte_size);
+  VkShaderModule frag_shader_module = dlu_create_shader_module(app, cur_ld, shi_frag.bytes, shi_frag.byte_size);
   check_err(!frag_shader_module, app, wc, NULL)
 
-  VkShaderModule vert_shader_module = dlu_create_shader_module(app, shi_vert.bytes, shi_vert.byte_size);
+  VkShaderModule vert_shader_module = dlu_create_shader_module(app, cur_ld, shi_vert.bytes, shi_vert.byte_size);
   check_err(!vert_shader_module, app, wc, frag_shader_module)
 
   dlu_freeup_spriv_bytes(DLU_LIB_SHADERC_SPRIV, shi_vert.result);
@@ -304,7 +309,7 @@ int main(void) {
   err = dlu_otba(DLU_GP_DATA_MEMS, app, cur_gpd, 1);
   check_err(!err, app, wc, NULL)
 
-  err = dlu_create_graphics_pipelines(app, cur_gpd, 2, shader_stages,
+  err = dlu_create_graphics_pipelines(app, cur_gpd, ARR_LEN(shader_stages), shader_stages,
     &vertex_input_info, &input_assembly, VK_NULL_HANDLE, &view_port_info,
     &rasterizer, &multisampling, VK_NULL_HANDLE, &color_blending,
     &dynamic_state, 0, VK_NULL_HANDLE, UINT32_MAX
@@ -313,8 +318,8 @@ int main(void) {
   check_err(err, app, wc, frag_shader_module)
 
   dlu_log_me(DLU_SUCCESS, "graphics pipeline creation successfull");
-  dlu_vk_destroy(DLU_DESTROY_VK_SHADER, app, frag_shader_module); frag_shader_module = VK_NULL_HANDLE;
-  dlu_vk_destroy(DLU_DESTROY_VK_SHADER, app, vert_shader_module); vert_shader_module = VK_NULL_HANDLE;
+  dlu_vk_destroy(DLU_DESTROY_VK_SHADER, app, cur_ld, frag_shader_module); frag_shader_module = VK_NULL_HANDLE;
+  dlu_vk_destroy(DLU_DESTROY_VK_SHADER, app, cur_ld, vert_shader_module); vert_shader_module = VK_NULL_HANDLE;
 
   /* Ending setup for graphics pipeline */
 
@@ -328,8 +333,7 @@ int main(void) {
   check_err(err, app, wc, NULL)
 
   /* Drawing will start when you begin a render pass */
-  dlu_exec_begin_render_pass(app, cur_pool, cur_scd, cur_gpd, 0, 0, extent2D.width,
-                             extent2D.height, 1, &clear_value, VK_SUBPASS_CONTENTS_INLINE);
+  dlu_exec_begin_render_pass(app, cur_pool, cur_scd, cur_gpd, 0, 0, extent2D.width, extent2D.height, 1, &clear_value, VK_SUBPASS_CONTENTS_INLINE);
   dlu_cmd_set_viewport(app, &viewport, cur_pool, cur_buff, 0, 1);
 
   dlu_bind_pipeline(app, cur_pool, cur_buff, VK_PIPELINE_BIND_POINT_GRAPHICS, app->gp_data[cur_gpd].graphics_pipelines[0]);
@@ -352,13 +356,14 @@ int main(void) {
   VkSemaphore render_sems[1] = {app->sc_data[cur_scd].syncs[0].sem.render};
   VkCommandBuffer cmd_buffs[1] = {app->cmd_data[cur_pool].cmd_buffs[cur_buff]};
 
+  /* set fence to unsignal state */
   err = dlu_vk_sync(DLU_VK_RESET_RENDER_FENCE, app, cur_scd, 0);
   check_err(err, app, wc, NULL)
 
   err = dlu_queue_graphics_queue(app, cur_scd, 0, 1, cmd_buffs, 1, acquire_sems, pipe_stage_flags, 1, render_sems);
   check_err(err, app, wc, NULL)
 
-  err = dlu_queue_present_queue(app, 1, render_sems, 1, &app->sc_data[cur_scd].swap_chain, &cur_buff, NULL);
+  err = dlu_queue_present_queue(app, cur_ld, 1, render_sems, 1, &app->sc_data[cur_scd].swap_chain, &cur_buff, NULL);
   check_err(err, app, wc, NULL)
 
   sleep(1);
