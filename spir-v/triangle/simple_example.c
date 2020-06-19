@@ -96,7 +96,7 @@ int main(void) {
   err = dlu_create_queue_families(app, cur_pd, VK_QUEUE_GRAPHICS_BIT);
   check_err(err, app, wc, NULL)
 
-  err = dlu_create_logical_device(app, cur_pd, cur_ld, &device_feats, 1, 0, NULL, ARR_LEN(device_extensions), device_extensions);
+  err = dlu_create_logical_device(app, cur_pd, cur_ld, &device_feats, 1, ARR_LEN(device_extensions), device_extensions);
   check_err(err, app, wc, NULL)
 
   VkSurfaceCapabilitiesKHR capabilities = dlu_get_physical_device_surface_capabilities(app, cur_pd);
@@ -124,7 +124,7 @@ int main(void) {
   err = dlu_create_swap_chain(app, cur_ld, cur_cmdd, capabilities, surface_fmt, pres_mode, extent2D.width, extent2D.height, 1, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
   check_err(err, app, wc, NULL)
 
-  err = dlu_create_cmd_pool(app, cur_ld, cur_scd, cur_cmdd, app->pd_data[cur_pd].gfam_idx, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
+  err = dlu_create_cmd_pool(app, cur_ld, cur_scd, cur_cmdd, app->pd_data[cur_pd].gfam_idx, 0);
   check_err(err, app, wc, NULL)
 
   err = dlu_create_cmd_buffs(app, cur_pool, cur_scd, VK_COMMAND_BUFFER_LEVEL_PRIMARY);
