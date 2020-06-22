@@ -30,7 +30,8 @@
 
 #include "simple_example.h"
 
-#define MAX_FRAMES 2
+#define NUM_DESCRIPTOR_SETS 1
+#define MAX_FRAMES 2 /* For Double Buffering */
 #define WIDTH 800
 #define HEIGHT 600
 
@@ -160,10 +161,10 @@ int main(void) {
   vi_attribs[0] = dlu_set_vertex_input_attrib_desc(0, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(vertex_2D, pos));
   vi_attribs[1] = dlu_set_vertex_input_attrib_desc(1, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(vertex_2D, color));
 
-  VkPipelineVertexInputStateCreateInfo vertex_input_info = dlu_set_vertex_input_state_info(1, &vi_binding, 2, vi_attribs);
+  VkPipelineVertexInputStateCreateInfo vertex_input_info = dlu_set_vertex_input_state_info(1, &vi_binding, ARR_LEN(vi_attribs), vi_attribs);
 
   /* This also sets the descriptor count */
-  err = dlu_otba(DLU_DESC_DATA_MEMS, app, cur_dd, app->sc_data[cur_scd].sic);
+  err = dlu_otba(DLU_DESC_DATA_MEMS, app, cur_dd, NUM_DESCRIPTOR_SETS);
   check_err(!err, app, wc, NULL)
 
   /* MVP transformation is in a single uniform buffer variable (not an array), So descriptor count is 1 */
@@ -171,7 +172,7 @@ int main(void) {
   VkDescriptorSetLayoutCreateInfo desc_set_info = dlu_set_desc_set_layout_info(0, 1, &desc_set);
 
   /* Using same layout for all VkDescriptorSetLayout objects */
-  err = dlu_create_desc_set_layouts(app, cur_dd, &desc_set_info);
+  err = dlu_create_desc_set_layout(app, cur_dd, 0, &desc_set_info);
   check_err(err, app, wc, NULL)
 
   err = dlu_create_pipeline_layout(app, cur_ld, cur_gpd, cur_dd, 0, NULL);
@@ -287,8 +288,10 @@ int main(void) {
 
   /* Start of vertex, index, and uniform buffer creation */
   vertex_2D rr_vertices[4] = {
-    {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}}, {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
-    {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}, {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}
+    {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+    {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
+    {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
+    {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}
   };
 
   VkDeviceSize vsize = sizeof(rr_vertices);
@@ -325,11 +328,11 @@ int main(void) {
   check_err(err, app, wc, NULL)
   /* End of buffer creation */
 
-  VkDescriptorPoolSize pool_size = dlu_set_desc_pool_size(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, app->sc_data[cur_scd].sic);
+  VkDescriptorPoolSize pool_size = dlu_set_desc_pool_size(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, NUM_DESCRIPTOR_SETS);
   err = dlu_create_desc_pool(app, cur_ld, cur_dd, 0, 1, &pool_size);
   check_err(err, app, wc, NULL)
 
-  err = dlu_create_desc_set(app, cur_dd);
+  err = dlu_create_desc_sets(app, cur_dd);
   check_err(err, app, wc, NULL)
 
   float float32[4] = {0.0f, 0.0f, 0.0f, 1.0f};
@@ -345,17 +348,18 @@ int main(void) {
   dlu_exec_begin_render_pass(app, cur_pool, cur_scd, cur_gpd, 0, 0, extent2D.width, extent2D.height, 1, &clear_value, VK_SUBPASS_CONTENTS_INLINE);
 
   /* set uniform buffer VKBufferInfos */
-  VkDescriptorBufferInfo buff_info;
-  VkWriteDescriptorSet write;
+  VkDescriptorBufferInfo buff_info; VkWriteDescriptorSet write;
+
+  buff_info = dlu_set_desc_buff_info(app->buff_data[0].buff, offsets[2], VK_WHOLE_SIZE);
+  write = dlu_write_desc_set(app->desc_data[0].desc_set[0], 0, 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, NULL, &buff_info, NULL);
+  dlu_update_desc_sets(app->ld_data[cur_ld].device, NUM_DESCRIPTOR_SETS, &write, 0, NULL);
+
   for (uint32_t i = 0; i < app->sc_data[cur_scd].sic; i++) {
-    buff_info = dlu_set_desc_buff_info(app->buff_data[0].buff, offsets[2], VK_WHOLE_SIZE);
-    write = dlu_write_desc_set(app->desc_data[cur_dd].desc_set[i], 0, 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, NULL, &buff_info, NULL);
-    dlu_update_desc_sets(app->ld_data[cur_ld].device, 1, &write, 0, NULL);
     dlu_cmd_set_viewport(app, &viewport, cur_pool, i, 0, 1);
-    dlu_bind_pipeline(app, cur_pool, i, VK_PIPELINE_BIND_POINT_GRAPHICS, app->gp_data[cur_gpd].graphics_pipelines[0]);
+    dlu_bind_pipeline(app, cur_pool, i, cur_gpd, 0, VK_PIPELINE_BIND_POINT_GRAPHICS);
     dlu_bind_vertex_buffs_to_cmd_buff(app, cur_pool, i, 0, 1, &app->buff_data[0].buff, offsets);
-    dlu_bind_index_buff_to_cmd_buff(app, cur_pool, i, app->buff_data[0].buff, offsets[1], VK_INDEX_TYPE_UINT16);
-    dlu_bind_desc_sets(app, cur_pool, i, cur_gpd, VK_PIPELINE_BIND_POINT_GRAPHICS, 0, 1, &app->desc_data[cur_dd].desc_set[i], 0, NULL);
+    dlu_bind_index_buff_to_cmd_buff(app, cur_pool, i, cur_bd, offsets[1], VK_INDEX_TYPE_UINT16);
+    dlu_bind_desc_sets(app, cur_pool, i, cur_gpd, cur_dd, VK_PIPELINE_BIND_POINT_GRAPHICS, 0, NULL);
     dlu_cmd_draw_indexed(app, cur_pool, i, index_count, 1, 0, offsets[0], 0);
   }
 
@@ -379,7 +383,7 @@ int main(void) {
   VkSemaphore acquire_sems[MAX_FRAMES], render_sems[MAX_FRAMES];
   VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 
-  for (uint32_t c = 0; c < 20000; c++) {
+  for (uint32_t c = 0; c < 200000; c++) {
     /* set fence to signal state */
     err = dlu_vk_sync(DLU_VK_WAIT_RENDER_FENCE, app, cur_scd, cur_frame);
     check_err(err, app, wc, NULL)
