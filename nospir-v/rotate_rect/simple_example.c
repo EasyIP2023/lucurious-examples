@@ -386,7 +386,7 @@ int main(void) {
   VkSemaphore acquire_sems[MAX_FRAMES], render_sems[MAX_FRAMES];
   VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 
-  for (uint32_t c = 0; c < 200000; c++) {
+  for (uint32_t c = 0; c < 20000; c++) {
     /* set fence to signal state */
     err = dlu_vk_sync(DLU_VK_WAIT_RENDER_FENCE, app, cur_scd, cur_frame);
     check_err(err, app, wc, NULL)

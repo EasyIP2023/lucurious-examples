@@ -173,11 +173,11 @@ int main(void) {
     VK_SHARING_MODE_EXCLUSIVE, 0, NULL, VK_IMAGE_LAYOUT_UNDEFINED
   );
 
-  img_sub_rr = dlu_set_image_sub_resource_range(VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1);
-  img_view_info = dlu_set_image_view_info(0, VK_NULL_HANDLE, VK_IMAGE_TYPE_2D, VK_FORMAT_D16_UNORM, comp_map, img_sub_rr);
   err = dlu_create_depth_buff(app, cur_scd, &img_info, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
   check_err(err, app, wc, NULL)
 
+  img_sub_rr = dlu_set_image_sub_resource_range(VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1);
+  img_view_info = dlu_set_image_view_info(0, VK_NULL_HANDLE, VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_D16_UNORM, comp_map, img_sub_rr);
   dlu_create_image_views(DLU_DEPTH_IMAGE_VIEWS, app, cur_scd, &img_view_info);
   check_err(err, app, wc, NULL)
 
