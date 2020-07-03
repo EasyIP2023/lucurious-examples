@@ -31,12 +31,12 @@
 #include "simple_example.h"
 
 #define NUM_DESCRIPTOR_SETS 1
-#define MAX_FRAMES 2 /* For Double Buffering */
+#define MAX_FRAMES 2
 #define WIDTH 800
 #define HEIGHT 600
 
 static dlu_otma_mems ma = {
-  .vkcomp_cnt = 1, .desc_cnt = 5, .gp_cnt = 1, .si_cnt = 5,
+  .vkcomp_cnt = 1, .desc_cnt = NUM_DESCRIPTOR_SETS, .gp_cnt = 1, .si_cnt = 5,
   .scd_cnt = 1, .gpd_cnt = 1, .cmdd_cnt = 1, .bd_cnt = 1,
   .dd_cnt = 1, .ld_cnt = 1, .pd_cnt = 1
 };
@@ -166,7 +166,7 @@ int main(void) {
   err = dlu_create_syncs(app, cur_scd);
   check_err(err, app, wc, NULL)
 
-  /* 0 is the binding. The # of is bytes there is between successive structs */
+  /* 0 is the binding. The # of bytes there is between successive structs */
   VkVertexInputBindingDescription vi_binding = dlu_set_vertex_input_binding_desc(0, sizeof(vertex_2D), VK_VERTEX_INPUT_RATE_VERTEX);
 
   VkVertexInputAttributeDescription vi_attribs[2];
@@ -183,7 +183,7 @@ int main(void) {
   VkDescriptorSetLayoutBinding desc_set = dlu_set_desc_set_layout_binding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, NULL);
   VkDescriptorSetLayoutCreateInfo desc_set_info = dlu_set_desc_set_layout_info(0, 1, &desc_set);
 
-  /* Using same layout for all VkDescriptorSetLayout objects */
+ /* Specify to X particular VkPipelineLayout/graphics pipeline how you plan on utilizing a descriptor set */
   err = dlu_create_desc_set_layout(app, cur_dd, 0, &desc_set_info);
   check_err(err, app, wc, NULL)
 
