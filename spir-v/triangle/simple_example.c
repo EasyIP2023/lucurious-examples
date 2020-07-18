@@ -317,10 +317,15 @@ int main(void) {
   check_err(err, app, wc, NULL)
   cur_bd++;
 
+  VkCommandBuffer cmd_buff = dlu_exec_begin_single_time_cmd_buff(app, cur_pool);
+  check_err(!cmd_buff, app, wc, NULL)
+
   /* Used to show functionality */
-  err = dlu_exec_copy_buffer(app, cur_pool, cur_bd-2, cur_bd-1, 0, 0, vsize);
-  check_err(err, app, wc, NULL)
+  dlu_exec_copy_buffer(app, cur_bd-2, cur_bd-1, 0, 0, vsize, cmd_buff);
   /* End of vertex buffer */
+
+  err = dlu_exec_end_single_time_cmd_buff(app, cur_pool, &cmd_buff);
+  check_err(err, app, wc, NULL)
 
   /* Destroy staging buffer as it is no longer needed */
   dlu_vk_destroy(DLU_DESTROY_VK_BUFFER, app, cur_ld, app->buff_data[cur_bd-2].buff); app->buff_data[cur_bd-2].buff = VK_NULL_HANDLE;
