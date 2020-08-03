@@ -67,7 +67,7 @@ static uint8_t next_color(bool *up, uint8_t cur, unsigned int mod) {
   return next;
 }
 
-static void modeset_draw(dlu_drm_core *core, void UNUSED **map) {
+static void modeset_draw(dlu_drm_core *core) {
   uint8_t r, g, b;
   bool r_up, g_up, b_up;
   unsigned int front_buf = 0;
@@ -108,10 +108,14 @@ static void modeset_draw(dlu_drm_core *core, void UNUSED **map) {
       for (uint32_t k = 0; k < width; k++)
         *(uint32_t *) &map_info[front_buf^1].pixel_data[stride * j + k * 4] = (r << 16) | (g << 8) | b;
 
+    void *pData = NULL;
+    dlu_drm_gbm_bo_map(core, front_buf^1, &pData, GBM_BO_TRANSFER_READ_WRITE);
+
     /* Copy data to back buffer */
-    //memcpy(map[front_buf ^ 1], cmap, bytes);
-    ret  = write(map_info[front_buf^1].fd, map_info[front_buf^1].pixel_data, bytes);
-    // if (ret < 0) dlu_log_me(DLU_WARNING, "%s", strerror(errno));
+    memcpy(pData, map_info[front_buf^1].pixel_data, bytes);
+
+    dlu_drm_gbm_bo_unmap(core->buff_data[front_buf^1].bo, pData);
+    pData = NULL;
 
     /* Present front buffer */
     if (!dlu_drm_do_modeset(core, front_buf)) {
@@ -119,9 +123,9 @@ static void modeset_draw(dlu_drm_core *core, void UNUSED **map) {
       goto exit_func_mm;
     }
 
-    //memset(map[front_buf], 0, bytes);
-    //memset(cmap, 0, bytes);
-
+    /* Clear Pixel Data */
+    memset(map_info[front_buf].pixel_data, 0, bytes);
+    
     front_buf ^= 1;
     usleep(100000);
   }
@@ -163,20 +167,13 @@ int main(void) {
   /* Create gbm_device to allocate framebuffers from. Then allocate the actual framebuffer */
   check_err(!dlu_drm_create_gbm_device(core), core);
 
-  void *map[ma.odb_cnt]; map[0] = map[1] = NULL;
-  for (uint32_t i = 0; i < ma.odb_cnt; i++) {
-    check_err(!dlu_drm_create_fb(DLU_DRM_GBM_BO, core, i, cur_od, GBM_BO_FORMAT_XRGB8888, 0), core);
-    dlu_log_me(DLU_WARNING, "map: %p - %p", &map[i], map[i]);
-    dlu_drm_gbm_bo_map(core, i, &map[i], GBM_BO_TRANSFER_READ_WRITE);
-    dlu_log_me(DLU_WARNING, "map: %p - %p", &map[i], map[i]);
-  }
+  uint32_t bo_flags = GBM_BO_USE_RENDERING | GBM_BO_USE_SCANOUT | GBM_BO_USE_LINEAR | GBM_BO_USE_WRITE;
+  for (uint32_t i = 0; i < ma.odb_cnt; i++)
+    check_err(!dlu_drm_create_fb(DLU_DRM_GBM_BO, core, i, cur_od, GBM_BO_FORMAT_XRGB8888, bo_flags, 0), core);
 
   // check_err(!dlu_drm_do_modeset(core, cur_bi), core);
 
-  modeset_draw(core, map);
-
-  for (uint32_t i = 0; i < ma.odb_cnt; i++)
-    dlu_drm_gbm_bo_unmap(core->buff_data[i].bo, map[i]);
+  modeset_draw(core);
 
   FREEME(core);
 
