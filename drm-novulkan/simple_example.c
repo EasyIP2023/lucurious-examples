@@ -22,28 +22,115 @@
 * THE SOFTWARE.
 */
 
-#include <stdio.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <stdint.h>
 #include <unistd.h>
+#include <string.h>
+#include <errno.h>
 #include <stdbool.h>
+
+#include <sys/mman.h>
+
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 #include "simple_example.h"
 
-#define SCANOUT_BUFFERS 2
+#define UNUSED __attribute__((unused))
 
-dlu_otma_mems ma = { .drmc_cnt = 1, .dod_cnt = 1, .odb_cnt = SCANOUT_BUFFERS };
+dlu_otma_mems ma = { .drmc_cnt = 1, .dod_cnt = 1, .odb_cnt = 2 };
 
 static bool init_buffs(dlu_drm_core *core) {
   bool err;
 
-  err = dlu_otba(DLU_DEVICE_OUTPUT_DATA, core, INDEX_IGNORE, 1);
+  err = dlu_otba(DLU_DEVICE_OUTPUT_DATA, core, INDEX_IGNORE, ma.dod_cnt);
   if (!err) return err;
 
-  err = dlu_otba(DLU_DEVICE_OUTPUT_BUFF_DATA, core, INDEX_IGNORE, SCANOUT_BUFFERS);
+  err = dlu_otba(DLU_DEVICE_OUTPUT_BUFF_DATA, core, INDEX_IGNORE, ma.odb_cnt);
   if (!err) return err;
 
   return err;
+}
+ 
+/* Taken from: https://github.com/dvdhrm/docs/blob/master/drm-howto/modeset-double-buffered.c */
+static uint8_t next_color(bool *up, uint8_t cur, unsigned int mod) {
+  uint8_t next;
+  
+  next = cur + (*up ? 1 : -1) * (rand() % mod);
+  if ((*up && next < cur) || (!*up && next > cur)) {
+    *up = !*up;
+    next = cur;
+  }
+  
+  return next;
+}
+
+static void modeset_draw(dlu_drm_core *core, void UNUSED **map) {
+  uint8_t r, g, b;
+  bool r_up, g_up, b_up;
+  unsigned int front_buf = 0;
+  int UNUSED ret;
+
+  uint32_t width = core->output_data[0].mode.hdisplay;
+  uint32_t height = core->output_data[0].mode.vdisplay;
+  uint32_t offset = core->buff_data[0].offsets[0];
+  uint32_t stride = core->buff_data[0].pitches[0];
+
+  struct _map_info {
+    uint8_t *pixel_data;
+    int fd;
+  } map_info[2];
+
+  map_info[0].fd = core->buff_data[0].dma_buf_fds[0];
+  map_info[1].fd = core->buff_data[1].dma_buf_fds[0];
+
+  size_t bytes = width * height * 4;
+  map_info[0].pixel_data = mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, map_info[0].fd, offset);
+  if (map_info[0].pixel_data == MAP_FAILED) { dlu_log_me(DLU_DANGER, "[x] %s", strerror(errno)); goto exit_func; }
+
+  map_info[1].pixel_data = mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, map_info[1].fd, offset);
+  if (map_info[1].pixel_data == MAP_FAILED) { dlu_log_me(DLU_DANGER, "[x] %s", strerror(errno)); goto exit_func; }
+
+  srand(time(NULL));
+  r = rand() % 0xff;
+  g = rand() % 0xff;
+  b = rand() % 0xff;
+  r_up = g_up = b_up = true;
+
+  for (uint32_t i = 0; i < 51; i++) {
+    r = next_color(&r_up, r, 20);
+    g = next_color(&g_up, g, 10);
+    b = next_color(&b_up, b, 5);
+
+    for (uint32_t j = 0; j <  height; j++)
+      for (uint32_t k = 0; k < width; k++)
+        *(uint32_t *) &map_info[front_buf^1].pixel_data[stride * j + k * 4] = (r << 16) | (g << 8) | b;
+
+    /* Copy data to back buffer */
+    //memcpy(map[front_buf ^ 1], cmap, bytes);
+    ret  = write(map_info[front_buf^1].fd, map_info[front_buf^1].pixel_data, bytes);
+    // if (ret < 0) dlu_log_me(DLU_WARNING, "%s", strerror(errno));
+
+    /* Present front buffer */
+    if (!dlu_drm_do_modeset(core, front_buf)) {
+      dlu_log_me(DLU_DANGER, "[x] cannot flip CRTC for connector (%u): %s\n", core->output_data[0].conn_id, strerror(errno));
+      goto exit_func_mm;
+    }
+
+    //memset(map[front_buf], 0, bytes);
+    //memset(cmap, 0, bytes);
+
+    front_buf ^= 1;
+    usleep(100000);
+  }
+
+exit_func_mm:
+  munmap(map_info[0].pixel_data, bytes);
+  munmap(map_info[1].pixel_data, bytes);
+exit_func:
+  return;
 }
 
 int main(void) {
@@ -62,22 +149,36 @@ int main(void) {
   * Then find a suitable kms node = drm device = gpu
   */
   check_err(!dlu_drm_create_session(core), core)
-  check_err(!dlu_drm_create_kms_node(core, NULL), core)
+  check_err(!dlu_drm_create_kms_node(core, "/dev/dri/card0"), core)
 
   dlu_drm_device_info dinfo[1];
   check_err(!dlu_drm_q_output_dev_info(core, dinfo), core) 
 
-  uint32_t cur_odb = 0, cur_bi = 0;
-  /* Indexes for my particular system kms node */
-  check_err(!dlu_drm_kms_node_enum_ouput_dev(core, cur_odb, dinfo->conn_idx, dinfo->enc_idx,
+  uint32_t cur_od = 0, UNUSED cur_bi = 0;
+  /* Saves the sate of the Plane -> CRTC -> Encoder -> Connector pair */
+  check_err(!dlu_drm_kms_node_enum_ouput_dev(core, cur_od, dinfo->conn_idx, dinfo->enc_idx,
                                              dinfo->crtc_idx, dinfo->plane_idx, dinfo->refresh,
-																						 dinfo->conn_name), core);
+                                             dinfo->conn_name), core);
 
+  /* Create gbm_device to allocate framebuffers from. Then allocate the actual framebuffer */
   check_err(!dlu_drm_create_gbm_device(core), core);
-  check_err(!dlu_drm_create_fb(DLU_DRM_GBM_BO, core, cur_bi, cur_odb, DRM_FORMAT_XRGB8888, 0), core);
 
-  /* Function name, parameters, logic may change */
-  check_err(!dlu_drm_do_modeset(core, cur_bi), core);
+  void *map[ma.odb_cnt]; map[0] = map[1] = NULL;
+  for (uint32_t i = 0; i < ma.odb_cnt; i++) {
+    check_err(!dlu_drm_create_fb(DLU_DRM_GBM_BO, core, i, cur_od, GBM_BO_FORMAT_XRGB8888, 0), core);
+    dlu_log_me(DLU_WARNING, "map: %p - %p", &map[i], map[i]);
+    dlu_drm_gbm_bo_map(core, i, &map[i], GBM_BO_TRANSFER_READ_WRITE);
+    dlu_log_me(DLU_WARNING, "map: %p - %p", &map[i], map[i]);
+  }
+
+  // check_err(!dlu_drm_do_modeset(core, cur_bi), core);
+
+  modeset_draw(core, map);
+
+  for (uint32_t i = 0; i < ma.odb_cnt; i++)
+    dlu_drm_gbm_bo_unmap(core->buff_data[i].bo, map[i]);
+
+  FREEME(core);
 
   return EXIT_SUCCESS;
 }

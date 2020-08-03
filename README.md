@@ -16,7 +16,7 @@ yay -S lucurious-git
 git clone https://github.com/EasyIP2023/lucurious.git
 cd lucurious/
 mkdir -v build
-meson build
+meson --warnlevel=0 build
 sudo ninja install -C build
 
 # OR: Encase of PolicyKit daemon errors
