@@ -22,6 +22,8 @@
 * THE SOFTWARE.
 */
 
+/* This is in proper usage. Let me know of any suggestions to do proper screen rendering */
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -71,7 +73,6 @@ static void modeset_draw(dlu_drm_core *core) {
   uint8_t r, g, b;
   bool r_up, g_up, b_up;
   unsigned int front_buf = 0;
-  int UNUSED ret;
 
   uint32_t width = core->output_data[0].mode.hdisplay;
   uint32_t height = core->output_data[0].mode.vdisplay;
@@ -83,14 +84,14 @@ static void modeset_draw(dlu_drm_core *core) {
     int fd;
   } map_info[2];
 
-  map_info[0].fd = core->buff_data[0].dma_buf_fds[0];
-  map_info[1].fd = core->buff_data[1].dma_buf_fds[0];
+  map_info[0].fd = core->buff_data[0].dma_buf_fds[0]; // core->device.kmsfd;
+  map_info[1].fd = core->buff_data[1].dma_buf_fds[0]; // core->device.kmsfd;
 
   size_t bytes = width * height * 4;
-  map_info[0].pixel_data = mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, map_info[0].fd, offset);
+  map_info[0].pixel_data = mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, offset);
   if (map_info[0].pixel_data == MAP_FAILED) { dlu_log_me(DLU_DANGER, "[x] %s", strerror(errno)); goto exit_func; }
 
-  map_info[1].pixel_data = mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, map_info[1].fd, offset);
+  map_info[1].pixel_data = mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, offset);
   if (map_info[1].pixel_data == MAP_FAILED) { dlu_log_me(DLU_DANGER, "[x] %s", strerror(errno)); goto exit_func; }
 
   srand(time(NULL));
@@ -99,23 +100,10 @@ static void modeset_draw(dlu_drm_core *core) {
   b = rand() % 0xff;
   r_up = g_up = b_up = true;
 
-  for (uint32_t i = 0; i < 51; i++) {
+  for (uint32_t i = 0; i < 50; i++) {
     r = next_color(&r_up, r, 20);
     g = next_color(&g_up, g, 10);
     b = next_color(&b_up, b, 5);
-
-    for (uint32_t j = 0; j <  height; j++)
-      for (uint32_t k = 0; k < width; k++)
-        *(uint32_t *) &map_info[front_buf^1].pixel_data[stride * j + k * 4] = (r << 16) | (g << 8) | b;
-
-    void *pData = NULL;
-    dlu_drm_gbm_bo_map(core, front_buf^1, &pData, GBM_BO_TRANSFER_READ_WRITE);
-
-    /* Copy data to back buffer */
-    memcpy(pData, map_info[front_buf^1].pixel_data, bytes);
-
-    dlu_drm_gbm_bo_unmap(core->buff_data[front_buf^1].bo, pData);
-    pData = NULL;
 
     /* Present front buffer */
     if (!dlu_drm_do_modeset(core, front_buf)) {
@@ -123,9 +111,28 @@ static void modeset_draw(dlu_drm_core *core) {
       goto exit_func_mm;
     }
 
-    /* Clear Pixel Data */
+    /* Clear Framebuffer Data */
     memset(map_info[front_buf].pixel_data, 0, bytes);
-    
+
+    for (uint32_t j = 0; j <  height; j++)
+      for (uint32_t k = 0; k < width; k++)
+        *(uint32_t *) &map_info[front_buf^1].pixel_data[stride * j + k * 4] = (r << 16) | (g << 8) | b;
+
+    /*
+    void *pData = NULL;
+    dlu_drm_gbm_bo_map(core, front_buf, &pData, GBM_BO_TRANSFER_READ_WRITE);
+
+    dlu_log_me(DLU_WARNING, "pData: %p - %p", &pData, pData);
+
+    // Copy data to buffer
+    memcpy(pData, map_info[front_buf].pixel_data, bytes);
+
+    dlu_drm_gbm_bo_unmap(core->buff_data[front_buf].bo, pData);
+    pData = NULL;
+    */
+
+    dlu_drm_gbm_bo_write(core->buff_data[front_buf^1].bo, map_info[front_buf^1].pixel_data, bytes);
+
     front_buf ^= 1;
     usleep(100000);
   }
@@ -167,11 +174,9 @@ int main(void) {
   /* Create gbm_device to allocate framebuffers from. Then allocate the actual framebuffer */
   check_err(!dlu_drm_create_gbm_device(core), core);
 
-  uint32_t bo_flags = GBM_BO_USE_RENDERING | GBM_BO_USE_SCANOUT | GBM_BO_USE_LINEAR | GBM_BO_USE_WRITE;
+  uint32_t bo_flags = GBM_BO_USE_SCANOUT  | GBM_BO_USE_WRITE;
   for (uint32_t i = 0; i < ma.odb_cnt; i++)
-    check_err(!dlu_drm_create_fb(DLU_DRM_GBM_BO, core, i, cur_od, GBM_BO_FORMAT_XRGB8888, bo_flags, 0), core);
-
-  // check_err(!dlu_drm_do_modeset(core, cur_bi), core);
+    check_err(!dlu_drm_create_fb(DLU_DRM_GBM_BO, core, i, cur_od, GBM_BO_FORMAT_XRGB8888, 24, 32, bo_flags, 0), core);
 
   modeset_draw(core);
 
