@@ -22,27 +22,20 @@
 * THE SOFTWARE.
 */
 
-/* This is in proper usage. Let me know of any suggestions to do proper screen rendering */
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
-#include <unistd.h>
 #include <string.h>
 #include <errno.h>
 #include <stdbool.h>
 
 #include <sys/mman.h>
 
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-
 #include "simple_example.h"
 
 #define UNUSED __attribute__((unused))
 
-dlu_otma_mems ma = { .drmc_cnt = 1, .dod_cnt = 1, .odb_cnt = 2 };
+dlu_otma_mems ma = { .drmc_cnt = 1, .dod_cnt = 1, .dob_cnt = 2 };
 
 static bool init_buffs(dlu_drm_core *core) {
   bool err;
@@ -50,7 +43,7 @@ static bool init_buffs(dlu_drm_core *core) {
   err = dlu_otba(DLU_DEVICE_OUTPUT_DATA, core, INDEX_IGNORE, ma.dod_cnt);
   if (!err) return err;
 
-  err = dlu_otba(DLU_DEVICE_OUTPUT_BUFF_DATA, core, INDEX_IGNORE, ma.odb_cnt);
+  err = dlu_otba(DLU_DEVICE_OUTPUT_BUFF_DATA, core, INDEX_IGNORE, ma.dob_cnt);
   if (!err) return err;
 
   return err;
@@ -82,17 +75,14 @@ static void modeset_draw(dlu_drm_core *core) {
   struct _map_info {
     uint8_t *pixel_data;
     int fd;
-  } map_info[2];
-
-  map_info[0].fd = core->buff_data[0].dma_buf_fds[0]; // core->device.kmsfd;
-  map_info[1].fd = core->buff_data[1].dma_buf_fds[0]; // core->device.kmsfd;
+  } map_info[ma.dob_cnt];
 
   size_t bytes = width * height * 4;
-  map_info[0].pixel_data = mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, offset);
-  if (map_info[0].pixel_data == MAP_FAILED) { dlu_log_me(DLU_DANGER, "[x] %s", strerror(errno)); goto exit_func; }
-
-  map_info[1].pixel_data = mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, offset);
-  if (map_info[1].pixel_data == MAP_FAILED) { dlu_log_me(DLU_DANGER, "[x] %s", strerror(errno)); goto exit_func; }
+  for (uint32_t i = 0; i < ma.dob_cnt; i++) {
+    map_info[i].fd = core->buff_data[i].dma_buf_fds[0]; // core->device.kmsfd;
+    map_info[i].pixel_data = mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, offset);
+    if (map_info[i].pixel_data == MAP_FAILED) { dlu_log_me(DLU_DANGER, "[x] %s", strerror(errno)); goto exit_func_mm; }
+  }
 
   srand(time(NULL));
   r = rand() % 0xff;
@@ -100,48 +90,31 @@ static void modeset_draw(dlu_drm_core *core) {
   b = rand() % 0xff;
   r_up = g_up = b_up = true;
 
-  for (uint32_t i = 0; i < 50; i++) {
+  for (uint32_t i = 0; i < 500; i++) {
     r = next_color(&r_up, r, 20);
     g = next_color(&g_up, g, 10);
     b = next_color(&b_up, b, 5);
+
+    /*  Render back buffer */
+    for (uint32_t j = 0; j <  height; j++)
+      for (uint32_t k = 0; k < width; k++)
+        *(uint32_t *) &map_info[(front_buf + 1) % ma.dob_cnt].pixel_data[stride * j + k * 4] = (r << 16) | (g << 8) | b;
+
+    dlu_drm_gbm_bo_write(core->buff_data[front_buf].bo, map_info[front_buf].pixel_data, bytes);
 
     /* Present front buffer */
     if (!dlu_drm_do_modeset(core, front_buf)) {
       dlu_log_me(DLU_DANGER, "[x] cannot flip CRTC for connector (%u): %s\n", core->output_data[0].conn_id, strerror(errno));
       goto exit_func_mm;
     }
-
-    /* Clear Framebuffer Data */
-    memset(map_info[front_buf].pixel_data, 0, bytes);
-
-    for (uint32_t j = 0; j <  height; j++)
-      for (uint32_t k = 0; k < width; k++)
-        *(uint32_t *) &map_info[front_buf^1].pixel_data[stride * j + k * 4] = (r << 16) | (g << 8) | b;
-
-    /*
-    void *pData = NULL;
-    dlu_drm_gbm_bo_map(core, front_buf, &pData, GBM_BO_TRANSFER_READ_WRITE);
-
-    dlu_log_me(DLU_WARNING, "pData: %p - %p", &pData, pData);
-
-    // Copy data to buffer
-    memcpy(pData, map_info[front_buf].pixel_data, bytes);
-
-    dlu_drm_gbm_bo_unmap(core->buff_data[front_buf].bo, pData);
-    pData = NULL;
-    */
-
-    dlu_drm_gbm_bo_write(core->buff_data[front_buf^1].bo, map_info[front_buf^1].pixel_data, bytes);
-
-    front_buf ^= 1;
-    usleep(100000);
+    
+    front_buf = (front_buf + 1) % ma.dob_cnt;
   }
 
 exit_func_mm:
-  munmap(map_info[0].pixel_data, bytes);
-  munmap(map_info[1].pixel_data, bytes);
-exit_func:
-  return;
+  for (uint32_t i = 0; i < ma.dob_cnt; i++)
+    if (map_info[i].pixel_data)
+      munmap(map_info[0].pixel_data, bytes);
 }
 
 int main(void) {
@@ -175,7 +148,7 @@ int main(void) {
   check_err(!dlu_drm_create_gbm_device(core), core);
 
   uint32_t bo_flags = GBM_BO_USE_SCANOUT  | GBM_BO_USE_WRITE;
-  for (uint32_t i = 0; i < ma.odb_cnt; i++)
+  for (uint32_t i = 0; i < ma.dob_cnt; i++)
     check_err(!dlu_drm_create_fb(DLU_DRM_GBM_BO, core, i, cur_od, GBM_BO_FORMAT_XRGB8888, 24, 32, bo_flags, 0), core);
 
   modeset_draw(core);
