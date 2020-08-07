@@ -80,7 +80,7 @@ static void modeset_draw(dlu_drm_core *core) {
   size_t bytes = width * height * 4;
   for (uint32_t i = 0; i < ma.dob_cnt; i++) {
     map_info[i].fd = core->buff_data[i].dma_buf_fds[0]; // core->device.kmsfd;
-    map_info[i].pixel_data = mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, offset);
+    map_info[i].pixel_data = mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, INDEX_IGNORE, offset);
     if (map_info[i].pixel_data == MAP_FAILED) { dlu_log_me(DLU_DANGER, "[x] %s", strerror(errno)); goto exit_func_mm; }
   }
 
@@ -95,19 +95,19 @@ static void modeset_draw(dlu_drm_core *core) {
     g = next_color(&g_up, g, 10);
     b = next_color(&b_up, b, 5);
 
-    /*  Render back buffer */
-    for (uint32_t j = 0; j <  height; j++)
-      for (uint32_t k = 0; k < width; k++)
-        *(uint32_t *) &map_info[(front_buf + 1) % ma.dob_cnt].pixel_data[stride * j + k * 4] = (r << 16) | (g << 8) | b;
-
-    dlu_drm_gbm_bo_write(core->buff_data[front_buf].bo, map_info[front_buf].pixel_data, bytes);
-
     /* Present front buffer */
     if (!dlu_drm_do_modeset(core, front_buf)) {
       dlu_log_me(DLU_DANGER, "[x] cannot flip CRTC for connector (%u): %s\n", core->output_data[0].conn_id, strerror(errno));
       goto exit_func_mm;
     }
-    
+
+    /*  Render to back buffer */
+    for (uint32_t j = 0; j <  height; j++)
+      for (uint32_t k = 0; k < width; k++)
+        *(uint32_t *) &map_info[(front_buf + 1) % ma.dob_cnt].pixel_data[stride * j + k * 4] = (r << 16) | (g << 8) | b;
+
+    dlu_drm_gbm_bo_write(core->buff_data[(front_buf + 1) % ma.dob_cnt].bo, map_info[(front_buf + 1) % ma.dob_cnt].pixel_data, bytes);
+
     front_buf = (front_buf + 1) % ma.dob_cnt;
   }
 
