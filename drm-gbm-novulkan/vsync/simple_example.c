@@ -1,3 +1,6 @@
+
+/* Parts of this file are similar to what's here: https://github.com/dvdhrm/docs/blob/master/drm-howto/modeset-double-buffered.c */
+
 /**
 * The MIT License (MIT)
 *
@@ -30,14 +33,43 @@
 #include <string.h>
 #include <errno.h>
 #include <stdbool.h>
-
+#include <unistd.h>
 #include <sys/mman.h>
+#include <sys/epoll.h>
+#include <fcntl.h>
 
 #include "simple_example.h"
 
 #define UNUSED __attribute__((unused))
 
-dlu_otma_mems ma = { .drmc_cnt = 1, .dod_cnt = 1, .dob_cnt = 2 };
+struct _map_info {
+  size_t bytes;
+  uint8_t *pixel_data;
+  int fd;
+};
+
+/**
+* Page-flip bool variable to determine when
+* a GEM (kernel subsytem) page-flip is currently
+* pending
+*/
+struct _output_info {
+  bool pflip;
+  uint32_t front_buf;
+};
+
+struct combind_info {
+  dlu_drm_core *core;
+  struct _output_info oi;
+};
+
+static dlu_otma_mems ma = { .drmc_cnt = 1, .dod_cnt = 1, .dob_cnt = 2 };
+static struct _map_info map_info[2];
+
+static inline void init_epoll_values(struct epoll_event *event) {
+  event->events = 0; event->data.ptr = NULL; event->data.fd = 0;
+  event->data.u32 = 0; event->data.u64 = 0;
+}
 
 static bool init_buffs(dlu_drm_core *core) {
   bool err;
@@ -50,8 +82,7 @@ static bool init_buffs(dlu_drm_core *core) {
 
   return err;
 }
- 
-/* Taken from: https://github.com/dvdhrm/docs/blob/master/drm-howto/modeset-double-buffered.c */
+
 static uint8_t next_color(bool *up, uint8_t cur, unsigned int mod) {
   uint8_t next;
   
@@ -64,59 +95,162 @@ static uint8_t next_color(bool *up, uint8_t cur, unsigned int mod) {
   return next;
 }
 
-static void modeset_draw(dlu_drm_core *core) {
+static void draw_screen(struct combind_info *info) {
+  static bool run_once = false;
+  dlu_drm_core *core = info->core;
+
   uint8_t r, g, b;
   bool r_up, g_up, b_up;
-  unsigned int front_buf = 0;
 
-  uint32_t width = core->output_data[0].mode.hdisplay;
-  uint32_t height = core->output_data[0].mode.vdisplay;
-  uint32_t offset = core->buff_data[0].offsets[0];
-  uint32_t stride = core->buff_data[0].pitches[0];
+  if (!run_once) {
+    r = rand() % 0xff;
+    g = rand() % 0xff;
+    b = rand() % 0xff;
+    r_up = g_up = b_up = true;
+    run_once = true;
+  }  
 
-  struct _map_info {
-    uint8_t *pixel_data;
-    int fd;
-  } map_info[ma.dob_cnt];
+  r = next_color(&r_up, r, 20);
+  g = next_color(&g_up, g, 10);
+  b = next_color(&b_up, b, 5);
 
-  size_t bytes = width * height * 4;
+  dlu_drm_gbm_bo_write(core->buff_data[info->oi.front_buf].bo, map_info[info->oi.front_buf].pixel_data, map_info[info->oi.front_buf].bytes);
+
+  if (!info->oi.pflip)  /* Page flip handle event */
+    if (!dlu_drm_do_page_flip(core, info->oi.front_buf, info)) return;
+
+  /*  Render back buffer */
+  for (uint32_t j = 0; j <  core->output_data[0].mode.vdisplay; j++)
+    for (uint32_t k = 0; k < core->output_data[0].mode.hdisplay; k++) /* pitch = stride */
+      *(uint32_t *) &map_info[info->oi.front_buf^1].pixel_data[core->buff_data[0].pitches[0] * j + k * 4] = (r << 16) | (g << 8) | b;
+
+  // dlu_drm_gbm_bo_write(core->buff_data[info->oi.front_buf^1].bo, map_info[info->oi.front_buf^1].pixel_data, map_info[info->oi.front_buf^1].bytes);
+
+  info->oi.pflip = true;
+  info->oi.front_buf ^= 1;
+}
+
+static void modeset_page_flip_event(int UNUSED fd, unsigned int UNUSED frame, unsigned int UNUSED sec, unsigned int UNUSED usec, void *data) {
+
+  struct combind_info *info = data;
+  info->oi.pflip = false;
+
+  draw_screen(info);
+}
+
+static void handle_screen(dlu_drm_core *core) {
+  uint32_t event_fd = 0, ready_fds = 0, max_events = 2;
+  struct epoll_event *events = NULL;
+
+  struct combind_info info;
+  info.core = core;
+  info.oi.front_buf = 0;
+  info.oi.pflip = false;
+
+  srand(time(NULL));
+
+  /**
+  * Set this to only the latest version you support. Version 2
+  * introduced the page_flip_handler, so we use that.
+  */
+  drmEventContext ev;
+  memset(&ev, 0, sizeof(ev));
+  ev.version = 2;
+  ev.page_flip_handler = modeset_page_flip_event;
+
+  /* Create space to assign pixel data to */
+  map_info[0].bytes = map_info[1].bytes = core->output_data[0].mode.hdisplay * core->output_data[0].mode.vdisplay * 4;
   for (uint32_t i = 0; i < ma.dob_cnt; i++) {
     map_info[i].fd = core->buff_data[i].dma_buf_fds[0]; // core->device.kmsfd;
-    map_info[i].pixel_data = mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, offset);
+    map_info[i].pixel_data = mmap(NULL, map_info[i].bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, INDEX_IGNORE, core->buff_data[i].offsets[0]);
     if (map_info[i].pixel_data == MAP_FAILED) { dlu_log_me(DLU_DANGER, "[x] %s", strerror(errno)); goto exit_func_mm; }
   }
 
-  srand(time(NULL));
-  r = rand() % 0xff;
-  g = rand() % 0xff;
-  b = rand() % 0xff;
-  r_up = g_up = b_up = true;
+  /* Initial scheduling of page-flips */
+  for (uint32_t i = 0; i < ma.dob_cnt; i++) draw_screen(&info);
 
-  for (uint32_t i = 0; i < 500; i++) {
-    r = next_color(&r_up, r, 20);
-    g = next_color(&g_up, g, 10);
-    b = next_color(&b_up, b, 5);
-    
-    /*  Render back buffer */
-    for (uint32_t j = 0; j <  height; j++)
-      for (uint32_t k = 0; k < width; k++)
-        *(uint32_t *) &map_info[front_buf^1].pixel_data[stride * j + k * 4] = (r << 16) | (g << 8) | b;
-
-    dlu_drm_gbm_bo_write(core->buff_data[front_buf].bo, map_info[front_buf].pixel_data, bytes);
-
-    /* Present front buffer */
-    if (!dlu_drm_do_modeset(core, front_buf)) {
-      dlu_log_me(DLU_DANGER, "[x] cannot flip CRTC for connector (%u): %s\n", core->output_data[0].conn_id, strerror(errno));
-      goto exit_func_mm;
-    }
-
-    front_buf ^= 1;
+  if ((event_fd = epoll_create1(0)) == UINT32_MAX) {
+    dlu_log_me(DLU_DANGER, "[x] epoll_create1: %s", strerror(errno));
+    goto exit_func_mm;
   }
 
+  events = calloc(max_events, sizeof(struct epoll_event));
+  if (!events) {
+    dlu_log_me(DLU_DANGER, "[x] calloc: %s", strerror(errno));
+    goto exit_free_events;
+  }
+
+  /**
+  * EPOLLIN: Associate a file descriptor for read() operations
+  * By default epoll is level triggered.
+  * Add kmsfd to epoll watch list 
+  */
+  struct epoll_event event;
+  init_epoll_values(&event);
+
+  event.events = EPOLLIN;
+  event.data.fd = core->device.kmsfd;
+  if (epoll_ctl(event_fd, EPOLL_CTL_ADD, event.data.fd, &event) == -1) {
+    dlu_log_me(DLU_DANGER, "[x] epoll_ctl: %s", strerror(errno));
+    goto exit_free_events;
+  }
+
+  /* Add stdin FD to epoll watch list */
+  init_epoll_values(&event);
+
+  int flags; /* set stdin filedecriptor into non-blocking mode */
+  if ((flags = fcntl(STDIN_FILENO, F_GETFL, 0)) == -1) {
+    dlu_log_me(DLU_DANGER, "[x] fcntl: %s", strerror(errno));
+    goto exit_free_events;
+  }
+
+  if (fcntl(STDIN_FILENO, F_SETFL, flags |= O_NONBLOCK) == -1) {
+    dlu_log_me(DLU_DANGER, "[x] fcntl: %s", strerror(errno));
+    goto exit_free_events;
+  }
+
+  event.events = EPOLLIN;
+  event.data.fd = STDIN_FILENO;
+  if (epoll_ctl(event_fd, EPOLL_CTL_ADD, event.data.fd, &event) == -1) {
+    dlu_log_me(DLU_DANGER, "[x] epoll_ctl: %s", strerror(errno));
+    goto exit_free_events;
+  }
+
+  int count = 0; char exit[2];
+  while(1) {
+    ready_fds = epoll_wait(event_fd, events, max_events, -1);
+    if (ready_fds == UINT32_MAX) {
+      dlu_log_me(DLU_DANGER, "[x] epoll_wait: %s", strerror(errno));
+      goto exit_free_events;
+    }
+
+    for (uint32_t i = 0; i < ready_fds; i++) {
+      if (events[i].data.fd == (int) core->device.kmsfd)
+        if (dlu_drm_do_handle_event(events[i].data.fd, &ev))
+          goto exit_free_events;
+
+      if (events[i].events & EPOLLIN) {      
+        if (read(STDIN_FILENO, exit, sizeof(exit)) != -1) {
+          dlu_log_me(DLU_WARNING, "%d : %c", exit[0], exit[0]);
+          if (exit[0] == 'q') {
+            dlu_log_me(DLU_WARNING, "User selected to exit");
+            goto exit_free_events;
+          }  
+        }
+      }
+    }
+
+    count++;
+    if (count == 500) goto exit_free_events;
+  }
+
+exit_free_events:
+  free(events);
+  close(event_fd);
 exit_func_mm:
   for (uint32_t i = 0; i < ma.dob_cnt; i++)
     if (map_info[i].pixel_data)
-      munmap(map_info[0].pixel_data, bytes);
+      munmap(map_info[i].pixel_data, map_info[i].bytes);
 }
 
 int main(void) {
@@ -150,10 +284,12 @@ int main(void) {
   check_err(!dlu_drm_create_gbm_device(core), core);
 
   uint32_t bo_flags = GBM_BO_USE_SCANOUT  | GBM_BO_USE_WRITE;
-  for (uint32_t i = 0; i < ma.dob_cnt; i++)
+  for (uint32_t i = 0; i < ma.dob_cnt; i++) {
     check_err(!dlu_drm_create_fb(DLU_DRM_GBM_BO, core, i, cur_od, GBM_BO_FORMAT_XRGB8888, 24, 32, bo_flags, 0), core);
+    check_err(!dlu_drm_do_modeset(core, i), core);
+  }
 
-  modeset_draw(core);
+  handle_screen(core);
 
   FREEME(core);
 

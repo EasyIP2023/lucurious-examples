@@ -1,3 +1,6 @@
+
+/* Parts of this file are similar to what's here: https://github.com/dvdhrm/docs/blob/master/drm-howto/modeset-double-buffered.c */
+
 /**
 * The MIT License (MIT)
 *
@@ -62,33 +65,34 @@ static uint8_t next_color(bool *up, uint8_t cur, unsigned int mod) {
   return next;
 }
 
-static void modeset_draw(dlu_drm_core *core) {
+static void draw_screen(dlu_drm_core *core) {
   uint8_t r, g, b;
   bool r_up, g_up, b_up;
   unsigned int front_buf = 0;
-
-  uint32_t width = core->output_data[0].mode.hdisplay;
-  uint32_t height = core->output_data[0].mode.vdisplay;
-  uint32_t offset = core->buff_data[0].offsets[0];
-  uint32_t stride = core->buff_data[0].pitches[0];
 
   struct _map_info {
     uint8_t *pixel_data;
     int fd;
   } map_info[ma.dob_cnt];
 
-  size_t bytes = width * height * 4;
-  for (uint32_t i = 0; i < ma.dob_cnt; i++) {
-    map_info[i].fd = core->buff_data[i].dma_buf_fds[0]; // core->device.kmsfd;
-    map_info[i].pixel_data = mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, INDEX_IGNORE, offset);
-    if (map_info[i].pixel_data == MAP_FAILED) { dlu_log_me(DLU_DANGER, "[x] %s", strerror(errno)); goto exit_func_mm; }
-  }
+  uint32_t width = core->output_data[0].mode.hdisplay;
+  uint32_t height = core->output_data[0].mode.vdisplay;
+  uint32_t offset = core->buff_data[0].offsets[0];
+  uint32_t stride = core->buff_data[0].pitches[0];
 
   srand(time(NULL));
   r = rand() % 0xff;
   g = rand() % 0xff;
   b = rand() % 0xff;
   r_up = g_up = b_up = true;
+
+  /* Create space to assign pixel data to */
+  size_t bytes = width * height * 4;
+  for (uint32_t i = 0; i < ma.dob_cnt; i++) {
+    map_info[i].fd = core->buff_data[i].dma_buf_fds[0]; // core->device.kmsfd;
+    map_info[i].pixel_data = mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, INDEX_IGNORE, offset);
+    if (map_info[i].pixel_data == MAP_FAILED) { dlu_log_me(DLU_DANGER, "[x] %s", strerror(errno)); goto exit_func_mm; }
+  }
 
   for (uint32_t i = 0; i < 500; i++) {
     r = next_color(&r_up, r, 20);
@@ -114,7 +118,7 @@ static void modeset_draw(dlu_drm_core *core) {
 exit_func_mm:
   for (uint32_t i = 0; i < ma.dob_cnt; i++)
     if (map_info[i].pixel_data)
-      munmap(map_info[0].pixel_data, bytes);
+      munmap(map_info[i].pixel_data, bytes);
 }
 
 int main(void) {
@@ -151,7 +155,7 @@ int main(void) {
   for (uint32_t i = 0; i < ma.dob_cnt; i++)
     check_err(!dlu_drm_create_fb(DLU_DRM_GBM_BO, core, i, cur_od, GBM_BO_FORMAT_XRGB8888, 24, 32, bo_flags, 0), core);
 
-  modeset_draw(core);
+  draw_screen(core);
 
   FREEME(core);
 
