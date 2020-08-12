@@ -1,4 +1,4 @@
-CC=cc --std=gnu18 -Wall -Wextra -Werror -g
+CC=cc --std=gnu18 -Wall -Wextra -Werror -g -ggdb
 LUCURIOUS_FLAGS=$(shell pkg-config lucurious --cflags --libs)
 
 all: se

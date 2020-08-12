@@ -110,8 +110,6 @@ static void draw_screen(struct _info *info) {
   g = next_color(&g_up, g, 10);
   b = next_color(&b_up, b, 5);
 
-  dlu_drm_gbm_bo_write(core->buff_data[info->front_buf].bo, map_info[info->front_buf].pixel_data, map_info[info->front_buf].bytes);
-
   if (!info->pflip)  /* Page flip handle event */
     if (!dlu_drm_do_page_flip(core, info->front_buf, info)) return;
 
@@ -119,6 +117,8 @@ static void draw_screen(struct _info *info) {
   for (uint32_t j = 0; j <  core->output_data[0].mode.vdisplay; j++)
     for (uint32_t k = 0; k < core->output_data[0].mode.hdisplay; k++) /* pitch = stride */
       *(uint32_t *) &map_info[info->front_buf^1].pixel_data[core->buff_data[0].pitches[0] * j + k * 4] = (r << 16) | (g << 8) | b;
+
+  dlu_drm_gbm_bo_write(core->buff_data[info->front_buf^1].bo, map_info[info->front_buf^1].pixel_data, map_info[info->front_buf^1].bytes);
 
   info->pflip = true;
   info->front_buf ^= 1;
@@ -160,8 +160,8 @@ static void handle_screen(dlu_drm_core *core) {
     if (map_info[i].pixel_data == MAP_FAILED) { dlu_log_me(DLU_DANGER, "[x] %s", strerror(errno)); goto exit_func_mm; }
   }
 
-  /* Initial scheduling of page-flips */
-  for (uint32_t i = 0; i < ma.dob_cnt; i++) draw_screen(&info);
+  /* Initial scheduling of page-flip */
+  draw_screen(&info);
 
   if ((event_fd = epoll_create1(0)) == UINT32_MAX) {
     dlu_log_me(DLU_DANGER, "[x] epoll_create1: %s", strerror(errno));
