@@ -56,7 +56,6 @@ struct _map_info {
 struct _info {
   dlu_drm_core *core;
   bool pflip;
-  uint32_t front_buf;
 };
 
 static dlu_otma_mems ma = { .drmc_cnt = 1, .dod_cnt = 1, .dob_cnt = 2 };
@@ -93,10 +92,11 @@ static uint8_t next_color(bool *up, uint8_t cur, unsigned int mod) {
 
 static void draw_screen(struct _info *info) {
   static bool run_once = false;
-  dlu_drm_core *core = info->core;
+  static uint8_t r, g, b;
+  static bool r_up, g_up, b_up;
+  static uint32_t front_buf = 0;
 
-  uint8_t r, g, b;
-  bool r_up, g_up, b_up;
+  dlu_drm_core *core = info->core;
 
   if (!run_once) {
     r = rand() % 0xff;
@@ -104,24 +104,24 @@ static void draw_screen(struct _info *info) {
     b = rand() % 0xff;
     r_up = g_up = b_up = true;
     run_once = true;
-  }  
+  }
 
   r = next_color(&r_up, r, 20);
   g = next_color(&g_up, g, 10);
   b = next_color(&b_up, b, 5);
 
-  if (!info->pflip)  /* Page flip handle event */
-    if (!dlu_drm_do_page_flip(core, info->front_buf, info)) return;
-
   /*  Render back buffer */
   for (uint32_t j = 0; j <  core->output_data[0].mode.vdisplay; j++)
     for (uint32_t k = 0; k < core->output_data[0].mode.hdisplay; k++) /* pitch = stride */
-      *(uint32_t *) &map_info[info->front_buf^1].pixel_data[core->buff_data[0].pitches[0] * j + k * 4] = (r << 16) | (g << 8) | b;
+      *(uint32_t *) &map_info[front_buf^1].pixel_data[core->buff_data[0].pitches[0] * j + k * 4] = (r << 16) | (g << 8) | b;
 
-  dlu_drm_gbm_bo_write(core->buff_data[info->front_buf^1].bo, map_info[info->front_buf^1].pixel_data, map_info[info->front_buf^1].bytes);
+  dlu_drm_gbm_bo_write(core->buff_data[front_buf].bo, map_info[front_buf].pixel_data, map_info[front_buf].bytes);
+
+  if (!info->pflip)  /* Page flip handle event */
+    if (!dlu_drm_do_page_flip(core, front_buf, info)) return;
 
   info->pflip = true;
-  info->front_buf ^= 1;
+  front_buf ^= 1;
 }
 
 static void modeset_page_flip_event(int UNUSED fd, unsigned int UNUSED frame, unsigned int UNUSED sec, unsigned int UNUSED usec, void *data) {
@@ -138,7 +138,6 @@ static void handle_screen(dlu_drm_core *core) {
 
   struct _info info;
   info.core = core;
-  info.front_buf = 0;
   info.pflip = false;
 
   srand(time(NULL));
