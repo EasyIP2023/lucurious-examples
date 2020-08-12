@@ -53,14 +53,10 @@ struct _map_info {
 * a GEM (kernel subsytem) page-flip is currently
 * pending
 */
-struct _output_info {
+struct _info {
+  dlu_drm_core *core;
   bool pflip;
   uint32_t front_buf;
-};
-
-struct combind_info {
-  dlu_drm_core *core;
-  struct _output_info oi;
 };
 
 static dlu_otma_mems ma = { .drmc_cnt = 1, .dod_cnt = 1, .dob_cnt = 2 };
@@ -95,7 +91,7 @@ static uint8_t next_color(bool *up, uint8_t cur, unsigned int mod) {
   return next;
 }
 
-static void draw_screen(struct combind_info *info) {
+static void draw_screen(struct info *info) {
   static bool run_once = false;
   dlu_drm_core *core = info->core;
 
@@ -114,24 +110,24 @@ static void draw_screen(struct combind_info *info) {
   g = next_color(&g_up, g, 10);
   b = next_color(&b_up, b, 5);
 
+  dlu_drm_gbm_bo_write(core->buff_data[info->front_buf].bo, map_info[info->front_buf].pixel_data, map_info[info->front_buf].bytes);
+
+  if (!info->pflip)  /* Page flip handle event */
+    if (!dlu_drm_do_page_flip(core, info->front_buf, info)) return;
+
   /*  Render back buffer */
   for (uint32_t j = 0; j <  core->output_data[0].mode.vdisplay; j++)
     for (uint32_t k = 0; k < core->output_data[0].mode.hdisplay; k++) /* pitch = stride */
-      *(uint32_t *) &map_info[info->oi.front_buf^1].pixel_data[core->buff_data[0].pitches[0] * j + k * 4] = (r << 16) | (g << 8) | b;
+      *(uint32_t *) &map_info[info->front_buf^1].pixel_data[core->buff_data[0].pitches[0] * j + k * 4] = (r << 16) | (g << 8) | b;
 
-  dlu_drm_gbm_bo_write(core->buff_data[info->oi.front_buf].bo, map_info[info->oi.front_buf].pixel_data, map_info[info->oi.front_buf].bytes);
-
-  if (!info->oi.pflip)  /* Page flip handle event */
-    if (!dlu_drm_do_page_flip(core, info->oi.front_buf, info)) return;
-
-  info->oi.pflip = true;
-  info->oi.front_buf ^= 1;
+  info->pflip = true;
+  info->front_buf ^= 1;
 }
 
 static void modeset_page_flip_event(int UNUSED fd, unsigned int UNUSED frame, unsigned int UNUSED sec, unsigned int UNUSED usec, void *data) {
 
-  struct combind_info *info = data;
-  info->oi.pflip = false;
+  struct _info *info = data;
+  info->pflip = false;
 
   draw_screen(info);
 }
@@ -140,7 +136,7 @@ static void handle_screen(dlu_drm_core *core) {
   uint32_t event_fd = 0, ready_fds = 0, max_events = 1;
   struct epoll_event *events = NULL;
 
-  struct combind_info info;
+  struct _info info;
   info.core = core;
   info.oi.front_buf = 0;
   info.oi.pflip = false;
@@ -194,7 +190,7 @@ static void handle_screen(dlu_drm_core *core) {
   }
 
   /**
-  * Used to get libinput event codes from input-event-codes.h.
+  * Libinput key codes from input-event-codes.h.
   * 1 == KEY_ESC
   */
   uint32_t key_code = UINT32_MAX;
