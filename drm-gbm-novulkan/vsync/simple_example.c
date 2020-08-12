@@ -91,7 +91,7 @@ static uint8_t next_color(bool *up, uint8_t cur, unsigned int mod) {
   return next;
 }
 
-static void draw_screen(struct info *info) {
+static void draw_screen(struct _info *info) {
   static bool run_once = false;
   dlu_drm_core *core = info->core;
 
@@ -138,8 +138,8 @@ static void handle_screen(dlu_drm_core *core) {
 
   struct _info info;
   info.core = core;
-  info.oi.front_buf = 0;
-  info.oi.pflip = false;
+  info.front_buf = 0;
+  info.pflip = false;
 
   srand(time(NULL));
 
