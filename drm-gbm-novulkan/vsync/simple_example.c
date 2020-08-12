@@ -114,17 +114,15 @@ static void draw_screen(struct combind_info *info) {
   g = next_color(&g_up, g, 10);
   b = next_color(&b_up, b, 5);
 
-  dlu_drm_gbm_bo_write(core->buff_data[info->oi.front_buf].bo, map_info[info->oi.front_buf].pixel_data, map_info[info->oi.front_buf].bytes);
-
-  if (!info->oi.pflip)  /* Page flip handle event */
-    if (!dlu_drm_do_page_flip(core, info->oi.front_buf, info)) return;
-
   /*  Render back buffer */
   for (uint32_t j = 0; j <  core->output_data[0].mode.vdisplay; j++)
     for (uint32_t k = 0; k < core->output_data[0].mode.hdisplay; k++) /* pitch = stride */
       *(uint32_t *) &map_info[info->oi.front_buf^1].pixel_data[core->buff_data[0].pitches[0] * j + k * 4] = (r << 16) | (g << 8) | b;
 
-  // dlu_drm_gbm_bo_write(core->buff_data[info->oi.front_buf^1].bo, map_info[info->oi.front_buf^1].pixel_data, map_info[info->oi.front_buf^1].bytes);
+  dlu_drm_gbm_bo_write(core->buff_data[info->oi.front_buf].bo, map_info[info->oi.front_buf].pixel_data, map_info[info->oi.front_buf].bytes);
+
+  if (!info->oi.pflip)  /* Page flip handle event */
+    if (!dlu_drm_do_page_flip(core, info->oi.front_buf, info)) return;
 
   info->oi.pflip = true;
   info->oi.front_buf ^= 1;
@@ -139,7 +137,7 @@ static void modeset_page_flip_event(int UNUSED fd, unsigned int UNUSED frame, un
 }
 
 static void handle_screen(dlu_drm_core *core) {
-  uint32_t event_fd = 0, ready_fds = 0, max_events = 2;
+  uint32_t event_fd = 0, ready_fds = 0, max_events = 1;
   struct epoll_event *events = NULL;
 
   struct combind_info info;
@@ -195,28 +193,11 @@ static void handle_screen(dlu_drm_core *core) {
     goto exit_free_events;
   }
 
-  /* Add stdin FD to epoll watch list */
-  init_epoll_values(&event);
-
-  int flags; /* set stdin filedecriptor into non-blocking mode */
-  if ((flags = fcntl(STDIN_FILENO, F_GETFL, 0)) == -1) {
-    dlu_log_me(DLU_DANGER, "[x] fcntl: %s", strerror(errno));
-    goto exit_free_events;
-  }
-
-  if (fcntl(STDIN_FILENO, F_SETFL, flags |= O_NONBLOCK) == -1) {
-    dlu_log_me(DLU_DANGER, "[x] fcntl: %s", strerror(errno));
-    goto exit_free_events;
-  }
-
-  event.events = EPOLLIN;
-  event.data.fd = STDIN_FILENO;
-  if (epoll_ctl(event_fd, EPOLL_CTL_ADD, event.data.fd, &event) == -1) {
-    dlu_log_me(DLU_DANGER, "[x] epoll_ctl: %s", strerror(errno));
-    goto exit_free_events;
-  }
-
-  int count = 0; char exit[2];
+  /**
+  * Used to get libinput event codes from input-event-codes.h.
+  * 1 == KEY_ESC
+  */
+  uint32_t key_code = UINT32_MAX;
   while(1) {
     ready_fds = epoll_wait(event_fd, events, max_events, -1);
     if (ready_fds == UINT32_MAX) {
@@ -225,23 +206,19 @@ static void handle_screen(dlu_drm_core *core) {
     }
 
     for (uint32_t i = 0; i < ready_fds; i++) {
+      if (!(events[i].events & EPOLLIN)) continue;
+
       if (events[i].data.fd == (int) core->device.kmsfd)
         if (dlu_drm_do_handle_event(events[i].data.fd, &ev))
           goto exit_free_events;
 
-      if (events[i].events & EPOLLIN) {      
-        if (read(STDIN_FILENO, exit, sizeof(exit)) != -1) {
-          dlu_log_me(DLU_WARNING, "%d : %c", exit[0], exit[0]);
-          if (exit[0] == 'q') {
-            dlu_log_me(DLU_WARNING, "User selected to exit");
-            goto exit_free_events;
-          }  
+      if (dlu_drm_retrieve_input(core, &key_code)) {
+        switch(key_code) {
+          case 1: goto exit_free_events; break;  /* KEY_ESC */ 
+          default: break;
         }
       }
     }
-
-    count++;
-    if (count == 500) goto exit_free_events;
   }
 
 exit_free_events:
@@ -282,6 +259,9 @@ int main(void) {
 
   /* Create gbm_device to allocate framebuffers from. Then allocate the actual framebuffer */
   check_err(!dlu_drm_create_gbm_device(core), core);
+
+  /* Create libinput FD, Establish connection to kernel input system */
+  check_err(!dlu_drm_create_input_handle(core), core);
 
   uint32_t bo_flags = GBM_BO_USE_SCANOUT  | GBM_BO_USE_WRITE;
   for (uint32_t i = 0; i < ma.dob_cnt; i++) {
