@@ -1,5 +1,5 @@
 
-/* Parts of this file are similar to what's here: https://github.com/dvdhrm/docs/blob/master/drm-howto/modeset-double-buffered.c */
+/* Parts of this file are similar to what's here: https://github.com/dvdhrm/docs/blob/master/drm-howto/modeset-vsync.c */
 
 /**
 * The MIT License (MIT)
@@ -48,16 +48,6 @@ struct _map_info {
   int fd;
 };
 
-/**
-* Page-flip bool variable to determine when
-* a GEM (kernel subsytem) page-flip is currently
-* pending
-*/
-struct _info {
-  dlu_drm_core *core;
-  bool pflip;
-};
-
 static dlu_otma_mems ma = { .drmc_cnt = 1, .dod_cnt = 1, .dob_cnt = 2 };
 static struct _map_info map_info[2];
 
@@ -90,19 +80,16 @@ static uint8_t next_color(bool *up, uint8_t cur, unsigned int mod) {
   return next;
 }
 
-static void draw_screen(struct _info *info) {
-  static bool run_once = false;
-  static uint8_t r, g, b;
-  static bool r_up, g_up, b_up;
+static void draw_screen(dlu_drm_core *core) {
+  static uint8_t r = 0, g = 0, b = 0;
+  static bool r_up = true, g_up = true, b_up = true, run_once = false;
   static uint32_t front_buf = 0;
 
-  dlu_drm_core *core = info->core;
-
   if (!run_once) {
+    srand(time(NULL));
     r = rand() % 0xff;
     g = rand() % 0xff;
     b = rand() % 0xff;
-    r_up = g_up = b_up = true;
     run_once = true;
   }
 
@@ -110,37 +97,26 @@ static void draw_screen(struct _info *info) {
   g = next_color(&g_up, g, 10);
   b = next_color(&b_up, b, 5);
 
+  if (!dlu_drm_do_page_flip(core, front_buf, core)) return;
+
   /*  Render back buffer */
   for (uint32_t j = 0; j <  core->output_data[0].mode.vdisplay; j++)
     for (uint32_t k = 0; k < core->output_data[0].mode.hdisplay; k++) /* pitch = stride */
       *(uint32_t *) &map_info[front_buf^1].pixel_data[core->buff_data[0].pitches[0] * j + k * 4] = (r << 16) | (g << 8) | b;
 
-  dlu_drm_gbm_bo_write(core->buff_data[front_buf].bo, map_info[front_buf].pixel_data, map_info[front_buf].bytes);
+  /* Page flip handle event */
+  dlu_drm_gbm_bo_write(core->buff_data[front_buf^1].bo, map_info[front_buf^1].pixel_data, map_info[front_buf].bytes);
 
-  if (!info->pflip)  /* Page flip handle event */
-    if (!dlu_drm_do_page_flip(core, front_buf, info)) return;
-
-  info->pflip = true;
   front_buf ^= 1;
 }
 
 static void modeset_page_flip_event(int UNUSED fd, unsigned int UNUSED frame, unsigned int UNUSED sec, unsigned int UNUSED usec, void *data) {
-
-  struct _info *info = data;
-  info->pflip = false;
-
-  draw_screen(info);
+  draw_screen((dlu_drm_core *) data);
 }
 
 static void handle_screen(dlu_drm_core *core) {
   uint32_t event_fd = 0, ready_fds = 0, max_events = 1;
   struct epoll_event *events = NULL;
-
-  struct _info info;
-  info.core = core;
-  info.pflip = false;
-
-  srand(time(NULL));
 
   /**
   * Set this to only the latest version you support. Version 2
@@ -160,7 +136,7 @@ static void handle_screen(dlu_drm_core *core) {
   }
 
   /* Initial scheduling of page-flip */
-  draw_screen(&info);
+  draw_screen(core);
 
   if ((event_fd = epoll_create1(0)) == UINT32_MAX) {
     dlu_log_me(DLU_DANGER, "[x] epoll_create1: %s", strerror(errno));
