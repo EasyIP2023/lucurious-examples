@@ -66,14 +66,13 @@ static uint8_t next_color(bool *up, uint8_t cur, unsigned int mod) {
 }
 
 static void draw_screen(dlu_drm_core *core) {
-  uint8_t r, g, b;
+  uint8_t r, g, b, front_buf = 0;
   bool r_up, g_up, b_up;
-  unsigned int front_buf = 0;
 
   struct _map_info {
     uint8_t *pixel_data;
-    int fd;
-  } map_info[ma.dob_cnt];
+    size_t bytes;
+  } map_info;
 
   uint32_t width = core->output_data[0].mode.hdisplay;
   uint32_t height = core->output_data[0].mode.vdisplay;
@@ -87,38 +86,31 @@ static void draw_screen(dlu_drm_core *core) {
   r_up = g_up = b_up = true;
 
   /* Create space to assign pixel data to */
-  size_t bytes = width * height * 4;
-  for (uint32_t i = 0; i < ma.dob_cnt; i++) {
-    map_info[i].fd = core->buff_data[i].dma_buf_fds[0]; // core->device.kmsfd;
-    map_info[i].pixel_data = mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, INDEX_IGNORE, offset);
-    if (map_info[i].pixel_data == MAP_FAILED) { dlu_log_me(DLU_DANGER, "[x] %s", strerror(errno)); goto exit_func_mm; }
-  }
+  map_info.bytes = width * height * 4;
+  map_info.pixel_data = mmap(NULL, map_info.bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, INDEX_IGNORE, offset);
+  if (map_info.pixel_data == MAP_FAILED) { dlu_log_me(DLU_DANGER, "[x] %s", strerror(errno)); goto exit_func_mm; }
 
   for (uint32_t i = 0; i < 500; i++) {
     r = next_color(&r_up, r, 20);
     g = next_color(&g_up, g, 10);
     b = next_color(&b_up, b, 5);
 
-    /* Present front buffer */
-    if (!dlu_drm_do_modeset(core, front_buf)) {
+    for (uint32_t j = 0; j <  height; j++)
+      for (uint32_t k = 0; k < width; k++)
+        *(uint32_t *) &map_info.pixel_data[stride * j + k * 4] = (r << 16) | (g << 8) | b;
+
+    dlu_drm_gbm_bo_write(core->buff_data[(front_buf + 1) % ma.dob_cnt].bo, map_info.pixel_data, map_info.bytes);
+
+    if (!dlu_drm_do_modeset(core, (front_buf + 1) % ma.dob_cnt)) {
       dlu_log_me(DLU_DANGER, "[x] cannot flip CRTC for connector (%u): %s\n", core->output_data[0].conn_id, strerror(errno));
       goto exit_func_mm;
     }
-
-    /*  Render to back buffer */
-    for (uint32_t j = 0; j <  height; j++)
-      for (uint32_t k = 0; k < width; k++)
-        *(uint32_t *) &map_info[(front_buf + 1) % ma.dob_cnt].pixel_data[stride * j + k * 4] = (r << 16) | (g << 8) | b;
-
-    dlu_drm_gbm_bo_write(core->buff_data[(front_buf + 1) % ma.dob_cnt].bo, map_info[(front_buf + 1) % ma.dob_cnt].pixel_data, bytes);
 
     front_buf = (front_buf + 1) % ma.dob_cnt;
   }
 
 exit_func_mm:
-  for (uint32_t i = 0; i < ma.dob_cnt; i++)
-    if (map_info[i].pixel_data)
-      munmap(map_info[i].pixel_data, bytes);
+  munmap(map_info.pixel_data, map_info.bytes);
 }
 
 int main(void) {
