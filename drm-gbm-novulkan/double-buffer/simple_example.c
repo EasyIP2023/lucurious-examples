@@ -104,9 +104,9 @@ static void draw_screen(dlu_drm_core *core) {
     if (!dlu_drm_do_modeset(core, (front_buf + 1) % ma.dob_cnt)) {
       dlu_log_me(DLU_DANGER, "[x] cannot flip CRTC for connector (%u): %s\n", core->output_data[0].conn_id, strerror(errno));
       goto exit_func_mm;
+    } else {
+      front_buf = (front_buf + 1) % ma.dob_cnt;
     }
-
-    front_buf = (front_buf + 1) % ma.dob_cnt;
   }
 
 exit_func_mm:

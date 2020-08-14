@@ -25,8 +25,6 @@
 * THE SOFTWARE.
 */
 
-/* File not fully implemented */
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -37,6 +35,9 @@
 #include <sys/mman.h>
 #include <sys/epoll.h>
 #include <fcntl.h>
+
+/* For Libinput input event codes */
+#include <linux/input-event-codes.h>
 
 #include "simple_example.h"
 
@@ -101,8 +102,7 @@ static void draw_screen(dlu_drm_core *core) {
   dlu_drm_gbm_bo_write(core->buff_data[front_buf^1].bo, map_info.pixel_data, map_info.bytes);
 
   if (!dlu_drm_do_page_flip(core, front_buf^1, core)) return;
-
-  front_buf ^= 1;
+  else front_buf ^= 1;
 }
 
 static void modeset_page_flip_event(int UNUSED fd, unsigned int UNUSED frame, unsigned int UNUSED sec, unsigned int UNUSED usec, void *data) {
@@ -154,22 +154,18 @@ static void handle_screen(dlu_drm_core *core) {
   if (epoll_ctl(event_fd, EPOLL_CTL_ADD, event.data.fd, &event) == -1) {
     dlu_log_me(DLU_DANGER, "[x] epoll_ctl: %s", strerror(errno));
     goto exit_free_events;
-  }
+  } 
 
   int input_fd = dlu_drm_retrieve_input_fd(core);
   init_epoll_values(&event);
 
   event.events = EPOLLIN;
-  event.data.fd = input_fd; /* No need to but adding to epoll watch list */
+  event.data.fd = input_fd;
   if (epoll_ctl(event_fd, EPOLL_CTL_ADD, event.data.fd, &event) == -1) {
     dlu_log_me(DLU_DANGER, "[x] epoll_ctl: %s", strerror(errno));
     goto exit_free_events;
   }
 
-  /**
-  * Libinput key codes from input-event-codes.h.
-  * 1 == KEY_ESC
-  */
   uint32_t key_code = UINT32_MAX;
   while(1) {
     ready_fds = epoll_wait(event_fd, events, max_events, -1);
@@ -185,12 +181,15 @@ static void handle_screen(dlu_drm_core *core) {
         if (dlu_drm_do_handle_event(events[i].data.fd, &ev))
           goto exit_free_events;
       
-      if (dlu_drm_retrieve_input(core, &key_code) || events[i].data.fd == input_fd) {
-        switch(key_code) {
-          case 1: goto exit_free_events; break;  /* KEY_ESC */ 
-          default: break;
+      // if (events[i].data.fd == input_fd) {
+        if (dlu_drm_retrieve_input(core, &key_code)) {
+          switch(key_code) {
+            case KEY_ESC: goto exit_free_events; break;
+            case KEY_Q: goto exit_free_events; break;
+            default: break;
+          }
         }
-      }
+      // }
     }
   }
 
