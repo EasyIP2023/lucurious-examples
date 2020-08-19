@@ -34,7 +34,6 @@
 #include <unistd.h>
 #include <sys/mman.h>
 #include <sys/epoll.h>
-#include <fcntl.h>
 
 /* For Libinput input event codes */
 #include <linux/input-event-codes.h>
@@ -102,7 +101,7 @@ static void draw_screen(dlu_drm_core *core) {
   dlu_drm_gbm_bo_write(core->buff_data[front_buf^1].bo, map_info.pixel_data, map_info.bytes);
 
   if (!dlu_drm_do_page_flip(core, front_buf^1, core)) return;
-  else front_buf ^= 1;
+  front_buf ^= 1;
 }
 
 static void modeset_page_flip_event(int UNUSED fd, unsigned int UNUSED frame, unsigned int UNUSED sec, unsigned int UNUSED usec, void *data) {
@@ -123,7 +122,7 @@ static void handle_screen(dlu_drm_core *core) {
   ev.page_flip_handler = modeset_page_flip_event;
 
   /* Create space to assign pixel data to */
-  map_info.bytes = core->output_data[0].mode.hdisplay * core->output_data[0].mode.vdisplay * 4;
+  map_info.bytes = core->output_data[0].mode.hdisplay * core->output_data[0].mode.vdisplay * 4; /* 4 bytes = 32 bit, R = 8 bits, G = 8 bits, B = 8 bits, A = 8 bits */
   map_info.pixel_data = mmap(NULL, map_info.bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, INDEX_IGNORE, core->buff_data[0].offsets[0]);
   if (map_info.pixel_data == MAP_FAILED) { dlu_log_me(DLU_DANGER, "[x] %s", strerror(errno)); goto exit_func_mm; }
 
@@ -135,16 +134,12 @@ static void handle_screen(dlu_drm_core *core) {
     goto exit_func_mm;
   }
 
-  events = calloc(max_events, sizeof(struct epoll_event));
-  if (!events) {
-    dlu_log_me(DLU_DANGER, "[x] calloc: %s", strerror(errno));
-    goto exit_free_events;
-  }
+  events = alloca(max_events * sizeof(struct epoll_event));
 
   /**
   * EPOLLIN: Associate a file descriptor for read() operations
   * By default epoll is level triggered.
-  * Add kmsfd to epoll watch list 
+  * Add kmsfd to epoll interest list 
   */
   struct epoll_event event;
   init_epoll_values(&event);
@@ -156,11 +151,12 @@ static void handle_screen(dlu_drm_core *core) {
     goto exit_free_events;
   } 
 
+  /* Add libinput FD to epoll interest list */
   int input_fd = dlu_drm_retrieve_input_fd(core);
   init_epoll_values(&event);
 
   event.events = EPOLLIN;
-  event.data.fd = input_fd;
+  event.data.fd = input_fd; /* Not needed but adding anyways */
   if (epoll_ctl(event_fd, EPOLL_CTL_ADD, event.data.fd, &event) == -1) {
     dlu_log_me(DLU_DANGER, "[x] epoll_ctl: %s", strerror(errno));
     goto exit_free_events;
@@ -168,6 +164,7 @@ static void handle_screen(dlu_drm_core *core) {
 
   uint32_t key_code = UINT32_MAX;
   while(1) {
+    /* Fetch the list of FD's that are ready for I/O from interest list. The kernel checks for this */
     ready_fds = epoll_wait(event_fd, events, max_events, -1);
     if (ready_fds == UINT32_MAX) {
       dlu_log_me(DLU_DANGER, "[x] epoll_wait: %s", strerror(errno));
@@ -175,26 +172,23 @@ static void handle_screen(dlu_drm_core *core) {
     }
 
     for (uint32_t i = 0; i < ready_fds; i++) {
-      if (!(events[i].events & EPOLLIN)) continue;  
+      if (!(events[i].events & EPOLLIN)) continue;
   
+      if (dlu_drm_retrieve_input(core, &key_code)) {
+        switch(key_code) {
+          case KEY_ESC: goto exit_free_events; break;
+          case KEY_Q: goto exit_free_events; break;
+          default: break;
+        }
+      }
+
       if (events[i].data.fd == (int) core->device.kmsfd)
         if (dlu_drm_do_handle_event(events[i].data.fd, &ev))
           goto exit_free_events;
-      
-      // if (events[i].data.fd == input_fd) {
-        if (dlu_drm_retrieve_input(core, &key_code)) {
-          switch(key_code) {
-            case KEY_ESC: goto exit_free_events; break;
-            case KEY_Q: goto exit_free_events; break;
-            default: break;
-          }
-        }
-      // }
     }
   }
 
 exit_free_events:
-  free(events);
   close(event_fd);
 exit_func_mm:
   munmap(map_info.pixel_data, map_info.bytes);
