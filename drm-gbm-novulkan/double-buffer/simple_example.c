@@ -157,7 +157,7 @@ int main(void) {
   /* Create gbm_device to allocate framebuffers from. Then allocate the actual framebuffer */
   check_err(!dlu_drm_create_gbm_device(core), core);
 
-  /* Create libinput FD, Establish connection to kernel input system */
+  /* Create libinput context, Establish connection to kernel input system */
   check_err(!dlu_drm_create_input_handle(core), core);
 
   uint32_t bo_flags = GBM_BO_USE_SCANOUT  | GBM_BO_USE_WRITE;

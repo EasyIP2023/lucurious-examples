@@ -78,8 +78,8 @@ static uint8_t next_color(bool *up, uint8_t cur, unsigned int mod) {
   return next;
 }
 
-static void draw_screen(dlu_drm_core *core) {
-  static uint8_t r, g, b, front_buf = 0;
+static void draw_screen(dlu_drm_core *core, uint8_t front_buf) {
+  static uint8_t r, g, b;
   static bool r_up = true, g_up = true, b_up = true, run_once = false;
 
   if (!run_once) {
@@ -98,14 +98,19 @@ static void draw_screen(dlu_drm_core *core) {
     for (uint32_t k = 0; k < core->output_data[0].mode.hdisplay; k++) /* pitch = stride */
       *(uint32_t *) &map_info.pixel_data[core->buff_data[0].pitches[0] * j + k * 4] = (r << 16) | (g << 8) | b;
 
-  dlu_drm_gbm_bo_write(core->buff_data[front_buf^1].bo, map_info.pixel_data, map_info.bytes);
+  dlu_drm_gbm_bo_write(core->buff_data[front_buf].bo, map_info.pixel_data, map_info.bytes);
 
-  if (!dlu_drm_do_page_flip(core, front_buf^1, core)) return;
-  front_buf ^= 1;
+  if (!dlu_drm_do_page_flip(core, front_buf, core)) return;
 }
 
 static void modeset_page_flip_event(int UNUSED fd, unsigned int UNUSED frame, unsigned int UNUSED sec, unsigned int UNUSED usec, void *data) {
-  draw_screen((dlu_drm_core *) data);
+  static uint8_t front_buf = 0;
+  dlu_drm_core *core = (dlu_drm_core *) data;
+ 
+  core->output_data[front_buf^1].pflip = false;
+  draw_screen(core, front_buf^1);
+
+  front_buf ^= 1;
 }
 
 static void handle_screen(dlu_drm_core *core) {
@@ -127,7 +132,7 @@ static void handle_screen(dlu_drm_core *core) {
   if (map_info.pixel_data == MAP_FAILED) { dlu_log_me(DLU_DANGER, "[x] %s", strerror(errno)); goto exit_func_mm; }
 
   /* Draw into initial buffer and schedule initial page-flip */
-  draw_screen(core);
+  draw_screen(core, 1);
 
   if ((event_fd = epoll_create1(0)) == UINT32_MAX) {
     dlu_log_me(DLU_DANGER, "[x] epoll_create1: %s", strerror(errno));
@@ -224,7 +229,7 @@ int main(void) {
   /* Create gbm_device to allocate framebuffers from. Then allocate the actual framebuffer */
   check_err(!dlu_drm_create_gbm_device(core), core);
 
-  /* Create libinput FD, Establish connection to kernel input system */
+  /* Create libinput context, Establish connection to kernel input system */
   check_err(!dlu_drm_create_input_handle(core), core);
 
   uint32_t bo_flags = GBM_BO_USE_SCANOUT  | GBM_BO_USE_WRITE;

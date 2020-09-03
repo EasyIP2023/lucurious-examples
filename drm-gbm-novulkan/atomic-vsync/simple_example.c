@@ -1,5 +1,5 @@
 
-/* Parts of this file are similar to what's here: https://github.com/dvdhrm/docs/blob/master/drm-howto/modeset-vsync.c */
+/* Parts of this file are similar to what's here: https://github.com/dvdhrm/docs/blob/master/drm-howto/modeset-atomic.c */
 
 /**
 * The MIT License (MIT)
@@ -78,8 +78,8 @@ static uint8_t next_color(bool *up, uint8_t cur, unsigned int mod) {
   return next;
 }
 
-static void draw_screen(dlu_drm_core *core) {
-  static uint8_t r, g, b, front_buf = 0;
+static void draw_screen(dlu_drm_core *core, uint8_t front_buf) {
+  static uint8_t r, g, b;
   static bool r_up = true, g_up = true, b_up = true, run_once = false;
 
   if (!run_once) {
@@ -95,33 +95,34 @@ static void draw_screen(dlu_drm_core *core) {
   b = next_color(&b_up, b, 5);
 
   for (uint32_t j = 0; j <  core->output_data[0].mode.vdisplay; j++)
-    for (uint32_t k = 0; k < core->output_data[0].mode.hdisplay; k++) /* pitch = stride */
+    for (uint32_t k = 0; k < core->output_data[0].mode.hdisplay; k++) /* pitch = stride = width of pixels in bytes */
       *(uint32_t *) &map_info.pixel_data[core->buff_data[0].pitches[0] * j + k * 4] = (r << 16) | (g << 8) | b;
 
-  dlu_drm_gbm_bo_write(core->buff_data[front_buf^1].bo, map_info.pixel_data, map_info.bytes);
+  dlu_drm_gbm_bo_write(core->buff_data[front_buf].bo, map_info.pixel_data, map_info.bytes);
 
   drmModeAtomicReq *req = dlu_drm_do_atomic_alloc();
 
-  dlu_drm_do_atomic_req(core, front_buf^1, req);
-  dlu_drm_do_atomic_commit(core, req, true);
+  dlu_drm_do_atomic_req(core, front_buf, req);
+  dlu_drm_do_atomic_commit(core, front_buf, req, true);
 
   dlu_drm_do_atomic_free(req);
-
-  front_buf ^= 1;
 }
 
 static void atomic_event_handler(int UNUSED fd, unsigned int UNUSED sequence, unsigned int UNUSED tv_sec, unsigned int UNUSED tv_usec, unsigned int UNUSED crtc_id, void *data) {
-  draw_screen((dlu_drm_core *) data);
+  static uint8_t front_buf = 0;
+  dlu_drm_core *core = (dlu_drm_core *) data;
+ 
+  core->output_data[front_buf^1].pflip = false;
+  draw_screen(core, front_buf^1);
+
+  front_buf ^= 1;
 }
 
 static void handle_screen(dlu_drm_core *core) {
   uint32_t event_fd = 0, ready_fds = 0, max_events = 2;
   struct epoll_event *events = NULL;
 
-  /**
-  * Set this to only the latest version you support. Version 2
-  * introduced the page_flip_handler, so we use that.
-  */
+  /* Version 3 utilizes the page_flip_handler2, so we use that. */
   drmEventContext ev;
   memset(&ev, 0, sizeof(ev));
   ev.version = 3;
@@ -133,7 +134,7 @@ static void handle_screen(dlu_drm_core *core) {
   if (map_info.pixel_data == MAP_FAILED) { dlu_log_me(DLU_DANGER, "[x] %s", strerror(errno)); goto exit_func_mm; }
 
   /* Draw into intial buffer */
-  draw_screen(core);
+  draw_screen(core, 1);
 
   if ((event_fd = epoll_create1(0)) == UINT32_MAX) {
     dlu_log_me(DLU_DANGER, "[x] epoll_create1: %s", strerror(errno));
@@ -230,7 +231,7 @@ int main(void) {
   /* Create gbm_device to allocate framebuffers from. Then allocate the actual framebuffer */
   check_err(!dlu_drm_create_gbm_device(core), core);
 
-  /* Create libinput FD, Establish connection to kernel input system */
+  /* Create libinput context, Establish connection to kernel input system */
   check_err(!dlu_drm_create_input_handle(core), core);
 
   uint32_t bo_flags = GBM_BO_USE_SCANOUT  | GBM_BO_USE_WRITE;
