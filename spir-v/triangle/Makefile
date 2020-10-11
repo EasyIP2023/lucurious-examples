@@ -8,6 +8,9 @@ XDG_SHELL_FILES=xdg-shell-client-protocol.h xdg-shell-protocol.c
 CC=cc --std=gnu18 -Wall -Wextra -Werror -g
 LUCURIOUS_FLAGS=$(shell pkg-config lucurious --cflags --libs)
 
+VERT=$(shell pwd)/vert.spv
+FRAG=$(shell pwd)/frag.spv
+
 all: glslang_to_spirv se
 
 glslang_to_spirv:
@@ -15,7 +18,7 @@ glslang_to_spirv:
 	glslangValidator -V shaders/shader.vert
 
 se: simple_example.c client.c $(XDG_SHELL_FILES)
-	$(CC) $(LUCURIOUS_FLAGS) $(WAYLAND_FLAGS) -o $@ $^
+	$(CC) -DVERT_SHADER='"$(VERT)"' -DFRAG_SHADER='"$(FRAG)"' $(LUCURIOUS_FLAGS) $(WAYLAND_FLAGS) -o $@ $^
 
 xdg-shell-client-protocol.h:
 	$(WAYLAND_SCANNER) client-header $(XDG_SHELL_PROTO) xdg-shell-client-protocol.h

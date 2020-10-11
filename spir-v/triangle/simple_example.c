@@ -195,9 +195,9 @@ int main(void) {
   );
 
   dlu_log_me(DLU_INFO, "Start of shader creation");
-  dlu_file_info shi_vert = dlu_read_file("vert.spv");
+  dlu_file_info shi_vert = dlu_read_file(VERT_SHADER);
   check_err(!shi_vert.bytes, app, wc, NULL)
-  dlu_file_info shi_frag = dlu_read_file("frag.spv");
+  dlu_file_info shi_frag = dlu_read_file(FRAG_SHADER);
   check_err(!shi_frag.bytes, app, wc, NULL)
   dlu_log_me(DLU_SUCCESS, "vert.spv and frag.spv bytes officially created");
 
