@@ -222,7 +222,7 @@ int main(void) {
   dlu_drm_device_info dinfo[1];
   check_err(!dlu_drm_q_output_dev_info(core, dinfo), core) 
 
-  uint32_t cur_od = 0, UNUSED cur_bi = 0;
+  uint32_t cur_od = 0;
   /* Saves the sate of the Plane -> CRTC -> Encoder -> Connector pair */
   check_err(!dlu_drm_kms_node_enum_ouput_dev(core, cur_od, dinfo->conn_idx, dinfo->enc_idx,
                                              dinfo->crtc_idx, dinfo->plane_idx, dinfo->refresh,

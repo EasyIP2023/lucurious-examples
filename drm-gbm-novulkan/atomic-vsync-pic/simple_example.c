@@ -1,5 +1,5 @@
 
-/* Parts of this file are similar to what's here: https://github.com/dvdhrm/docs/blob/master/drm-howto/modeset-vsync.c */
+/* Parts of this file are similar to what's here: https://github.com/dvdhrm/docs/blob/master/drm-howto/modeset-atomic.c */
 
 /**
 * The MIT License (MIT)
@@ -42,12 +42,12 @@
 
 #define UNUSED __attribute__((unused))
 
-static struct _map_info {
-  size_t bytes;
-  uint8_t *pixel_data;
-} map_info;
-
 static dlu_otma_mems ma = { .drmc_cnt = 1, .dod_cnt = 1, .dob_cnt = 2 };
+
+static struct _map_info {
+  size_t bytes_sz;
+  unsigned char *pixel_data;
+} map_info;
 
 static inline void init_epoll_values(struct epoll_event *event) {
   event->events = 0; event->data.ptr = NULL; event->data.fd = 0;
@@ -66,44 +66,18 @@ static bool init_buffs(dlu_drm_core *core) {
   return err;
 }
 
-static uint8_t next_color(bool *up, uint8_t cur, unsigned int mod) {
-  uint8_t next;
-  
-  next = cur + (*up ? 1 : -1) * (rand() % mod);
-  if ((*up && next < cur) || (!*up && next > cur)) {
-    *up = !*up;
-    next = cur;
-  }
-  
-  return next;
-}
-
 static void draw_screen(dlu_drm_core *core, uint8_t front_buf) {
-  static uint8_t r, g, b;
-  static bool r_up = true, g_up = true, b_up = true, run_once = false;
+  dlu_drm_gbm_bo_write(core->buff_data[front_buf].bo, map_info.pixel_data, map_info.bytes_sz);
 
-  if (!run_once) {
-    srand(time(NULL));
-    r = rand() % 0xff;
-    g = rand() % 0xff;
-    b = rand() % 0xff;
-    run_once = true;
-  }
+  drmModeAtomicReq *req = dlu_drm_do_atomic_alloc();
 
-  r = next_color(&r_up, r, 20);
-  g = next_color(&g_up, g, 10);
-  b = next_color(&b_up, b, 5);
+  dlu_drm_do_atomic_req(core, front_buf, req);
+  dlu_drm_do_atomic_commit(core, front_buf, req, true);
 
-  for (uint32_t j = 0; j <  core->output_data[0].mode.vdisplay; j++)
-    for (uint32_t k = 0; k < core->output_data[0].mode.hdisplay; k++) /* pitch = stride */
-      *(uint32_t *) &map_info.pixel_data[core->buff_data[0].pitches[0] * j + k * 4] = (r << 16) | (g << 8) | b;
-
-  dlu_drm_gbm_bo_write(core->buff_data[front_buf].bo, map_info.pixel_data, map_info.bytes);
-
-  if (!dlu_drm_do_page_flip(core, front_buf, core)) return;
+  dlu_drm_do_atomic_free(req);
 }
 
-static void modeset_page_flip_event(int UNUSED fd, unsigned int UNUSED frame, unsigned int UNUSED sec, unsigned int UNUSED usec, void *data) {
+static void atomic_event_handler(int UNUSED fd, unsigned int UNUSED sequence, unsigned int UNUSED tv_sec, unsigned int UNUSED tv_usec, unsigned int UNUSED crtc_id, void *data) {
   static uint8_t front_buf = 0;
   dlu_drm_core *core = (dlu_drm_core *) data;
  
@@ -117,26 +91,40 @@ static void handle_screen(dlu_drm_core *core) {
   uint32_t event_fd = 0, ready_fds = 0, max_events = 2;
   struct epoll_event *events = NULL;
 
-  /**
-  * Set this to only the latest version you support. Version 2
-  * introduced the page_flip_handler, so we use that.
-  */
+  /* Version 3 utilizes the page_flip_handler2, so we use that. */
   drmEventContext ev;
   memset(&ev, 0, sizeof(ev));
-  ev.version = 2;
-  ev.page_flip_handler = modeset_page_flip_event;
+  ev.version = 3;
+  ev.page_flip_handler2 = atomic_event_handler;
 
-  /* Create space to assign pixel data to */
-  map_info.bytes = core->output_data[0].mode.hdisplay * core->output_data[0].mode.vdisplay * 4; /* 4 bytes = 32 bit, R = 8 bits, G = 8 bits, B = 8 bits, A = 8 bits */
-  map_info.pixel_data = mmap(NULL, map_info.bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, INDEX_IGNORE, core->buff_data[0].offsets[0]);
-  if (map_info.pixel_data == MAP_FAILED) { dlu_log_me(DLU_DANGER, "[x] %s", strerror(errno)); goto exit_func_mm; }
+  dlu_file_info picture = dlu_read_file(IMG_SRC);
+  if (!picture.bytes) return;
 
-  /* Draw into initial buffer and schedule initial page-flip */
+  /* First load the image */
+  int pw = 0, ph = 0, pchannels = 0, requested_channels = STBI_rgb_alpha;
+  map_info.pixel_data = stbi_load_from_memory((unsigned char *) picture.bytes, picture.byte_size, &pw, &ph, &pchannels, requested_channels);
+  if (!map_info.pixel_data) {  
+    dlu_log_me(DLU_DANGER, "[x] %s failed to load", IMG_SRC);
+    dlu_log_me(DLU_DANGER, "[x] %s", stbi_failure_reason());
+    /* Going to leave function call the same for legacy reasons */
+    dlu_freeup_spriv_bytes(DLU_UTILS_FILE_SPRIV, picture.bytes);
+    goto exit_free_pixels;
+  }
+
+  dlu_log_me(DLU_SUCCESS, "%s successfully loaded", IMG_SRC);
+  dlu_log_me(DLU_SUCCESS, "Image width: %dpx, Image height: %dpx", pw, ph);
+  dlu_freeup_spriv_bytes(DLU_UTILS_FILE_SPRIV, picture.bytes); picture.bytes = NULL;
+  /* End of image loader */
+
+  /* Calculate image size in bytes */
+  map_info.bytes_sz = pw * ph * (requested_channels <= 0 ? pchannels : requested_channels);
+
+  /* Draw into intial buffer */
   draw_screen(core, 1);
 
   if ((event_fd = epoll_create1(0)) == UINT32_MAX) {
     dlu_log_me(DLU_DANGER, "[x] epoll_create1: %s", strerror(errno));
-    goto exit_func_mm;
+    goto exit_free_pixels;
   }
 
   events = alloca(max_events * sizeof(struct epoll_event));
@@ -195,8 +183,8 @@ static void handle_screen(dlu_drm_core *core) {
 
 exit_free_events:
   close(event_fd);
-exit_func_mm:
-  munmap(map_info.pixel_data, map_info.bytes);
+exit_free_pixels:
+  free(map_info.pixel_data);
 }
 
 int main(void) {
