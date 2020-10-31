@@ -1,6 +1,3 @@
-
-/* Parts of this file are similar to what's here: https://github.com/dvdhrm/docs/blob/master/drm-howto/modeset-atomic.c */
-
 /**
 * The MIT License (MIT)
 *
@@ -106,7 +103,6 @@ static void handle_screen(dlu_drm_core *core) {
   if (!map_info.pixel_data) {  
     dlu_log_me(DLU_DANGER, "[x] %s failed to load", IMG_SRC);
     dlu_log_me(DLU_DANGER, "[x] %s", stbi_failure_reason());
-    /* Going to leave function call the same for legacy reasons */
     dlu_freeup_spriv_bytes(DLU_UTILS_FILE_SPRIV, picture.bytes);
     goto exit_free_pixels;
   }
@@ -184,7 +180,7 @@ static void handle_screen(dlu_drm_core *core) {
 exit_free_events:
   close(event_fd);
 exit_free_pixels:
-  free(map_info.pixel_data);
+  stbi_image_free(map_info.pixel_data);
 }
 
 int main(void) {
