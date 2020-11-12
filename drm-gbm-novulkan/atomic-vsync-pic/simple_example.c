@@ -216,7 +216,7 @@ int main(void) {
   /* Create libinput context, Establish connection to kernel input system */
   check_err(!dlu_drm_create_input_handle(core), core);
 
-  uint32_t bo_flags = GBM_BO_USE_SCANOUT  | GBM_BO_USE_WRITE;
+  uint32_t bo_flags = GBM_BO_USE_SCANOUT | GBM_BO_USE_WRITE;
   for (uint32_t i = 0; i < ma.dob_cnt; i++) {
     check_err(!dlu_drm_create_fb(DLU_DRM_GBM_BO, core, i, cur_od, GBM_BO_FORMAT_XRGB8888, 24, 32, bo_flags, 0), core);
     check_err(!dlu_drm_do_modeset(core, i), core);
