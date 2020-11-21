@@ -1,13 +1,19 @@
-CC=cc --std=gnu18 -Wall -Wextra -Werror -g -ggdb
-LUCURIOUS_FLAGS=$(shell pkg-config lucurious --cflags --libs)
+LUCURIOUS_FLAGS=$(shell pkg-config lucurious --cflags)
+LUCURIOUS_LIBS=$(shell pkg-config lucurious --libs)
+
+CC=gcc
+PROG=se
+OBJS=simple_example.o
+CFLAGS=-Wall -Wextra -Werror -std=gnu18 -g -ggdb -lm $(LUCURIOUS_FLAGS) -D'IMG_SRC=$(PIC)'
+LIBS=$(LUCURIOUS_LIBS)
 
 PIC="$(shell pwd)/ahsoka-tano-wallpaper.png"
 
-all: se
+all: $(PROG)
 
-se: simple_example.c
-	$(CC) -D'IMG_SRC=$(PIC)' $(LUCURIOUS_FLAGS) -lm -o $@ $^
+$(PROG): $(OBJS)
+	$(CC) $(CFLAGS) $^ $(LIBS) -o $@
 
 .PHONY: clean
 clean:
-	$(RM) se
+	$(RM) $(PROG) *.o

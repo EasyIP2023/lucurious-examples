@@ -1,11 +1,17 @@
-CC=cc --std=gnu18 -Wall -Wextra -Werror -g -ggdb
-LUCURIOUS_FLAGS=$(shell pkg-config lucurious --cflags --libs)
+LUCURIOUS_FLAGS=$(shell pkg-config lucurious --cflags)
+LUCURIOUS_LIBS=$(shell pkg-config lucurious --libs)
 
-all: se
+CC=gcc
+PROG=se
+OBJS=simple_example.o
+CFLAGS=-Wall -Wextra -Werror -std=gnu18 -g -ggdb $(LUCURIOUS_FLAGS)
+LIBS=$(LUCURIOUS_LIBS)
 
-se: simple_example.c
-	$(CC) $(LUCURIOUS_FLAGS) -o $@ $^
+all: $(PROG)
+
+$(PROG): $(OBJS)
+	$(CC) $(CFLAGS) $^ $(LIBS) -o $@
 
 .PHONY: clean
 clean:
-	$(RM) se
+	$(RM) $(PROG) *.o

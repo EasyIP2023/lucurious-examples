@@ -1,24 +1,42 @@
-WAYLAND_FLAGS=$(shell pkg-config wayland-client --cflags --libs)
+CUR_DIR=$(shell pwd)
+
 WAYLAND_PROTOS_DIR=$(shell pkg-config wayland-protocols --variable=pkgdatadir)
 WAYLAND_SCANNER=$(shell pkg-config --variable=wayland_scanner wayland-scanner)
-
 XDG_SHELL_PROTO=$(WAYLAND_PROTOS_DIR)/stable/xdg-shell/xdg-shell.xml
 XDG_SHELL_FILES=xdg-shell-client-protocol.h xdg-shell-protocol.c
 
-CC=cc --std=gnu18 -Wall -Wextra -Werror -g
-LUCURIOUS_FLAGS=$(shell pkg-config lucurious --cflags --libs)
+WAYLAND_FLAGS=$(shell pkg-config wayland-client --cflags)
+WAYLAND_LIBS=$(shell pkg-config wayland-client --libs)
+LUCURIOUS_LIBS=$(shell pkg-config lucurious --libs)
 
-VERT=$(shell pwd)/vert.spv
-FRAG=$(shell pwd)/frag.spv
+VERT=$(CUR_DIR)/vert.spv
+FRAG=$(CUR_DIR)/frag.spv
 
-all: glslang_to_spirv se
+CC=gcc
+PROG=se
+SPIRV=$(VERT) $(FRAG)
+OBJS=simple_example.o
+WAYLAND_OBJS=client.o xdg-shell-protocol.o
+# common flags
+COM_FLAGS=-Wall -Wextra -Werror -std=gnu18 -g -ggdb
+CFLAGS=$(COM_FLAGS)
+CFLAGS+=-DVERT_SHADER='"$(VERT)"' -DFRAG_SHADER='"$(FRAG)"'
 
-glslang_to_spirv:
-	glslangValidator -V shaders/shader.frag
-	glslangValidator -V shaders/shader.vert
+LIBS=$(LUCURIOUS_LIBS) $(WAYLAND_LIBS)
 
-se: simple_example.c client.c $(XDG_SHELL_FILES)
-	$(CC) -DVERT_SHADER='"$(VERT)"' -DFRAG_SHADER='"$(FRAG)"' $(LUCURIOUS_FLAGS) $(WAYLAND_FLAGS) -o $@ $^
+all: $(SPIRV) $(XDG_SHELL_FILES) $(PROG)
+
+$(PROG): $(WAYLAND_OBJS) $(OBJS)
+	$(CC) $(CFLAGS) $^ $(LIBS) -o $@
+
+$(WAYLAND_OBJS): %.o: %.c
+	$(CC) -c $(COM_FLAGS) $(WAYLAND_FLAGS) $< $(WAYLAND_LIBS) -o $@
+
+$(VERT):
+	glslangValidator -V $(CUR_DIR)/shaders/shader.vert
+
+$(FRAG):
+	glslangValidator -V $(CUR_DIR)/shaders/shader.frag
 
 xdg-shell-client-protocol.h:
 	$(WAYLAND_SCANNER) client-header $(XDG_SHELL_PROTO) xdg-shell-client-protocol.h
@@ -28,4 +46,4 @@ xdg-shell-protocol.c:
 
 .PHONY: clean
 clean:
-	$(RM) se *.spv $(XDG_SHELL_FILES)
+	$(RM) $(PROG) $(XDG_SHELL_FILES) *.o *.spv
