@@ -26,14 +26,14 @@
 #define SIMPLE_EXAMPLE_H
 
 #define LUCUR_SPIRV_API
-#define LUCUR_DRM_API
+#define LUCUR_DISPLAY_API
 #define LUCUR_STBI_API
 #define STB_IMAGE_IMPLEMENTATION
 #include <dluc/lucurious.h>
 
 #define FREEME(core) \
   do { \
-    if (core) dlu_drm_freeup_core(core); \
+    if (core) dlu_disp_freeup_core(core); \
     dlu_release_blocks(); \
   } while(0);
 

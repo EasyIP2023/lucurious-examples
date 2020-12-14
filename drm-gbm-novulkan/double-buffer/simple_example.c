@@ -54,7 +54,7 @@ static inline void init_epoll_values(struct epoll_event *event) {
   event->data.u32 = 0; event->data.u64 = 0;
 }
 
-static bool init_buffs(dlu_drm_core *core) {
+static bool init_buffs(dlu_disp_core *core) {
   bool err;
 
   err = dlu_otba(DLU_DEVICE_OUTPUT_DATA, core, INDEX_IGNORE, ma.dod_cnt);
@@ -79,7 +79,7 @@ static uint8_t next_color(bool *up, uint8_t cur, unsigned int mod) {
   return next;
 }
 
-static void draw_screen(dlu_drm_core *core) {
+static void draw_screen(dlu_disp_core *core) {
   static uint8_t r, g, b, front_buf = 0;
   static bool r_up = true, g_up = true, b_up = true, run_once = false;
 
@@ -99,13 +99,13 @@ static void draw_screen(dlu_drm_core *core) {
     for (uint32_t k = 0; k < core->output_data[0].mode.hdisplay; k++) /* pitch = stride */
       *(uint32_t *) &map_info.pixel_data[core->buff_data[0].pitches[0] * j + k * 4] = (r << 16) | (g << 8) | b;
 
-  dlu_drm_gbm_bo_write(core->buff_data[front_buf^1].bo, map_info.pixel_data, map_info.bytes);
+  dlu_fb_gbm_bo_write(core->buff_data[front_buf^1].bo, map_info.pixel_data, map_info.bytes);
 
-  if (!dlu_drm_do_modeset(core, front_buf^1)) return;
+  if (!dlu_kms_modeset(core, front_buf^1)) return;
   front_buf ^= 1;
 }
 
-static void handle_screen(dlu_drm_core *core) {
+static void handle_screen(dlu_disp_core *core) {
   /* Create space to assign pixel data to */
   map_info.bytes = core->output_data[0].mode.hdisplay * core->output_data[0].mode.vdisplay * 4; /* 4 bytes = 32 bit, R = 8 bits, G = 8 bits, B = 8 bits, A = 8 bits */
   map_info.pixel_data = mmap(NULL, map_info.bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, INDEX_IGNORE, core->buff_data[0].offsets[0]);
@@ -114,7 +114,7 @@ static void handle_screen(dlu_drm_core *core) {
   uint32_t key_code = UINT32_MAX;
   while(1) {
     draw_screen(core);
-    if (dlu_drm_retrieve_input(core, &key_code)) {
+    if (dlu_input_retrieve(core, &key_code)) {
       switch(key_code) {
         case KEY_ESC: goto exit_func_mm; break;
         case KEY_Q: goto exit_func_mm; break;
@@ -131,7 +131,7 @@ int main(void) {
 
   if (!dlu_otma(DLU_LARGE_BLOCK_PRIV, ma)) return EXIT_FAILURE;
 
-  dlu_drm_core *core = dlu_drm_init_core();
+  dlu_disp_core *core = dlu_disp_init_core();
   check_err(!core, NULL);
 
   check_err(!init_buffs(core), core);
@@ -142,27 +142,24 @@ int main(void) {
   * privileged devices without being root.
   * Then find a suitable kms node = drm device = gpu
   */
-  check_err(!dlu_drm_create_session(core), core)
-  check_err(!dlu_drm_create_kms_node(core, "/dev/dri/card0"), core)
+  check_err(!dlu_session_create(core), core)
+  check_err(!dlu_kms_node_create(core, "/dev/dri/card0"), core)
 
-  dlu_drm_device_info dinfo[1];
-  check_err(!dlu_drm_q_output_dev_info(core, dinfo), core) 
+  dlu_disp_device_info dinfo[1];
+  check_err(!dlu_kms_q_output_chain(core, dinfo), core) 
 
-  uint32_t cur_od = 0;
+  uint32_t cur_odb = 0;
   /* Saves the sate of the Plane -> CRTC -> Encoder -> Connector pair */
-  check_err(!dlu_drm_kms_node_enum_ouput_dev(core, cur_od, dinfo->conn_idx, dinfo->enc_idx,
-                                             dinfo->crtc_idx, dinfo->plane_idx, dinfo->refresh,
-                                             dinfo->conn_name), core);
-
-  /* Create gbm_device to allocate framebuffers from. Then allocate the actual framebuffer */
-  check_err(!dlu_drm_create_gbm_device(core), core);
+  check_err(!dlu_kms_enum_device(core, cur_odb, dinfo->conn_idx, dinfo->enc_idx, dinfo->crtc_idx,
+                                 dinfo->plane_idx, dinfo->refresh, dinfo->conn_name), core);
 
   /* Create libinput context, Establish connection to kernel input system */
-  check_err(!dlu_drm_create_input_handle(core), core);
+  check_err(!dlu_input_create(core), core);
 
-  uint32_t bo_flags = GBM_BO_USE_SCANOUT  | GBM_BO_USE_WRITE;
-  for (uint32_t i = 0; i < ma.dob_cnt; i++)
-    check_err(!dlu_drm_create_fb(DLU_DRM_GBM_BO, core, i, cur_od, GBM_BO_FORMAT_XRGB8888, 24, 32, bo_flags, 0), core);
+  check_err(!dlu_fb_create(core, ma.dob_cnt, &(dlu_disp_fb_info) {
+    .type = DLU_DISPLAY_GBM_BO, .cur_odb = cur_odb, .depth = 24, .bpp = 32,
+    .bo_flags = GBM_BO_USE_SCANOUT|GBM_BO_USE_WRITE, .format = GBM_BO_FORMAT_XRGB8888, .flags = 0
+  }), core);
 
   handle_screen(core);
 

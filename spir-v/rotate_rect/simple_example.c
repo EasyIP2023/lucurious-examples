@@ -297,9 +297,9 @@ int main(void) {
   VkDeviceSize isize = sizeof(indices);
   const uint32_t index_count = ARR_LEN(indices);
 
-  /* Calculate uniform buffer minUniformBufferOffsetAlignment byte */
+  /* Calculate byte uniform buffer should start at */
   uint32_t vi_size = vsize+isize;
-  for (;;) { if ((vi_size % device_props.limits.minUniformBufferOffsetAlignment) == 0) break; vi_size+=1; }
+  OFFSET_ALIGN(vi_size, device_props.limits.minUniformBufferOffsetAlignment);
 
   const VkDeviceSize offsets[] = {0, vsize, vi_size};
 
