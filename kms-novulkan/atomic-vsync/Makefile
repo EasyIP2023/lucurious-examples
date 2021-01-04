@@ -5,7 +5,7 @@ CC=gcc
 PROG=se
 OBJS=simple_example.o
 CFLAGS=-Wall -Wextra -Werror -std=gnu18 -g -ggdb $(LUCURIOUS_FLAGS)
-LIBS=$(LUCURIOUS_LIBS)
+LIBS=$(LUCURIOUS_LIBS) -lm
 
 all: $(PROG)
 

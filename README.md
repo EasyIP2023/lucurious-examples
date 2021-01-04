@@ -41,9 +41,13 @@ Lucurious has two different methods for getting SPIR-V bytes **libshaderc** and 
 glslangValidator -V shaders/shader.frag
 glslangValidator -V shaders/shader.vert
 ```
+
 ```bash
 make
 ./se
+
+# if running kms examples
+./se <optional image>
 ```
 
 **Command Line Usage**

@@ -43,6 +43,7 @@
 #define UNUSED __attribute__((unused))
 
 struct _map_info {
+  bool is_image;
   uint8_t *pixel_data;
   size_t bytes;
 } map_info;
@@ -83,6 +84,8 @@ static void draw_screen(dlu_disp_core *core) {
   static uint8_t r, g, b, front_buf = 0;
   static bool r_up = true, g_up = true, b_up = true, run_once = false;
 
+  if (map_info.is_image) goto display;
+
   if (!run_once) {
     srand(time(NULL));
     r = rand() % 0xff;
@@ -99,35 +102,69 @@ static void draw_screen(dlu_disp_core *core) {
     for (uint32_t k = 0; k < core->output_data[0].mode.hdisplay; k++) /* pitch = stride */
       *(uint32_t *) &map_info.pixel_data[core->buff_data[0].pitches[0] * j + k * 4] = (r << 16) | (g << 8) | b;
 
+display:
   dlu_fb_gbm_bo_write(core->buff_data[front_buf^1].bo, map_info.pixel_data, map_info.bytes);
 
   if (!dlu_kms_modeset(core, front_buf^1)) return;
   front_buf ^= 1;
 }
 
-static void handle_screen(dlu_disp_core *core) {
-  /* Create space to assign pixel data to */
-  map_info.bytes = core->output_data[0].mode.hdisplay * core->output_data[0].mode.vdisplay * 4; /* 4 bytes = 32 bit, R = 8 bits, G = 8 bits, B = 8 bits, A = 8 bits */
-  map_info.pixel_data = mmap(NULL, map_info.bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, INDEX_IGNORE, core->buff_data[0].offsets[0]);
-  if (map_info.pixel_data == MAP_FAILED) { dlu_log_me(DLU_DANGER, "[x] %s", strerror(errno)); goto exit_func_mm; }
+static void handle_screen(dlu_disp_core *core, const char *image) {
+  if (image) {
+    dlu_file_info picture = dlu_read_file(image);
+    if (!picture.bytes) goto exit_func;
+
+    int pw = 0, ph = 0, pchannels = 0, requested_channels = STBI_rgb_alpha;
+    map_info.pixel_data = stbi_load_from_memory((unsigned char *) picture.bytes, picture.byte_size, &pw, &ph, &pchannels, requested_channels);
+    if (!map_info.pixel_data) {
+      dlu_log_me(DLU_DANGER, "[x] %s", stbi_failure_reason());
+      free(picture.bytes);
+      goto exit_func;
+    }
+
+    map_info.is_image = true;
+    free(picture.bytes);
+
+    if (pw != core->output_data[0].mode.hdisplay) {
+      dlu_log_me(DLU_DANGER, "[x] For now the picture pixel width must be picture must be the \
+                           same amount of pixels the monitor will allow (%u)", core->output_data[0].mode.hdisplay);
+      goto exit_func;
+    }
+
+    /* Calculate image size in bytes */
+    map_info.bytes = core->output_data[0].mode.hdisplay * core->output_data[0].mode.vdisplay * (requested_channels <= 0 ? pchannels : requested_channels); 
+  } else {
+    /* Create space to assign pixel data to */
+    map_info.bytes = core->output_data[0].mode.hdisplay * core->output_data[0].mode.vdisplay * 4; /* 4 bytes = 32 bit, R = 8 bits, G = 8 bits, B = 8 bits, A = 8 bits */
+    map_info.pixel_data = mmap(NULL, map_info.bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, INDEX_IGNORE, core->buff_data[0].offsets[0]);
+    if (map_info.pixel_data == MAP_FAILED) { dlu_log_me(DLU_DANGER, "[x] %s", strerror(errno)); goto exit_func; }
+  }
 
   uint32_t key_code = UINT32_MAX;
   while(1) {
     draw_screen(core);
     if (dlu_input_retrieve(core, &key_code)) {
       switch(key_code) {
-        case KEY_ESC: goto exit_func_mm; break;
-        case KEY_Q: goto exit_func_mm; break;
+        case KEY_ESC: goto exit_func; break;
+        case KEY_Q: goto exit_func; break;
         default: break;
       }
     }
   }
 
-exit_func_mm:
-  munmap(map_info.pixel_data, map_info.bytes);
+exit_func:
+  if (map_info.pixel_data) {
+    if (image) stbi_image_free(map_info.pixel_data);
+    else munmap(map_info.pixel_data, map_info.bytes);
+  }
 }
 
-int main(void) {
+int main(int argc, char *argv[]) {
+
+  if (argc > 2) {
+    dlu_log_me(DLU_DANGER, "Usage: %s <path to image>", argv[0]);
+    return EXIT_FAILURE;
+  }
 
   if (!dlu_otma(DLU_LARGE_BLOCK_PRIV, ma)) return EXIT_FAILURE;
 
@@ -161,7 +198,7 @@ int main(void) {
     .bo_flags = GBM_BO_USE_SCANOUT|GBM_BO_USE_WRITE, .format = GBM_BO_FORMAT_XRGB8888, .flags = 0
   }), core);
 
-  handle_screen(core);
+  handle_screen(core, argv[1]);
 
   FREEME(core);
 

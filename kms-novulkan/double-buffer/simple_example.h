@@ -25,7 +25,10 @@
 #ifndef SIMPLE_EXAMPLE_H
 #define SIMPLE_EXAMPLE_H
 
+#define LUCUR_SPIRV_API
 #define LUCUR_DISPLAY_API
+#define LUCUR_STBI_API
+#define STB_IMAGE_IMPLEMENTATION
 #include <dluc/lucurious.h>
 
 #define FREEME(core) \
