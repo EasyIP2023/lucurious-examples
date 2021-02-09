@@ -43,6 +43,7 @@
 #define UNUSED __attribute__((unused))
 
 static struct _map_info {
+  drmModeAtomicReq *req;
   bool is_image;
   size_t bytes;
   uint8_t *pixel_data;
@@ -104,12 +105,8 @@ static void draw_screen(dlu_disp_core *core, uint8_t front_buf) {
 display:
   dlu_fb_gbm_bo_write(core->buff_data[front_buf].bo, map_info.pixel_data, map_info.bytes);
 
-  drmModeAtomicReq *req = dlu_kms_atomic_alloc();
-
-  dlu_kms_atomic_req(core, front_buf, req);
-  dlu_kms_atomic_commit(core, front_buf, req);
-
-  dlu_kms_atomic_free(req);
+  dlu_kms_atomic_req(core, front_buf, map_info.req);
+  dlu_kms_atomic_commit(core, front_buf, map_info.req);
 }
 
 static void atomic_event_handler(int UNUSED fd, unsigned int UNUSED sequence, unsigned int UNUSED tv_sec, unsigned int UNUSED tv_usec, unsigned int UNUSED crtc_id, void *data) {
@@ -161,6 +158,8 @@ static void handle_screen(dlu_disp_core *core, const char *image) {
     map_info.pixel_data = mmap(NULL, map_info.bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, INDEX_IGNORE, core->buff_data[0].offsets[0]);
     if (map_info.pixel_data == MAP_FAILED) { dlu_log_me(DLU_DANGER, "[x] %s", strerror(errno)); goto exit_func; }
   }
+
+  map_info.req = dlu_kms_atomic_alloc();
 
   /* Draw into intial buffer */
   draw_screen(core, 1);
@@ -231,6 +230,8 @@ exit_func:
     if (image) stbi_image_free(map_info.pixel_data);
     else munmap(map_info.pixel_data, map_info.bytes);
   }
+
+  dlu_kms_atomic_free(map_info.req);
 }
 
 int main(int argc, char *argv[]) {
