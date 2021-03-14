@@ -4,7 +4,7 @@
 /**
 * The MIT License (MIT)
 *
-* Copyright (c) 2019-2020 Vincent Davis Jr.
+* Copyright (c) 2019-2021 Vincent Davis Jr.
 *
 * Permission is hereby granted, free of charge, to any person obtaining a copy
 * of this software and associated documentation files (the "Software"), to deal
@@ -98,12 +98,12 @@ static void draw_screen(dlu_disp_core *core, uint8_t front_buf) {
   g = next_color(&g_up, g, 10);
   b = next_color(&b_up, b, 5);
 
-  for (uint32_t j = 0; j <  core->output_data[0].mode.vdisplay; j++)
-    for (uint32_t k = 0; k < core->output_data[0].mode.hdisplay; k++) /* pitch = stride = width of pixels in bytes */
-      *(uint32_t *) &map_info.pixel_data[core->buff_data[0].pitches[0] * j + k * 4] = (r << 16) | (g << 8) | b;
+  for (uint32_t j = 0; j <  core->oc_data[0].mode.vdisplay; j++)
+    for (uint32_t k = 0; k < core->oc_data[0].mode.hdisplay; k++) /* pitch = stride = width of pixels in bytes */
+      *(uint32_t *) &map_info.pixel_data[core->dfb_data[0].pitches[0] * j + k * 4] = (r << 16) | (g << 8) | b;
 
 display:
-  dlu_fb_gbm_bo_write(core->buff_data[front_buf].bo, map_info.pixel_data, map_info.bytes);
+  dlu_fb_gbm_bo_write(core->dfb_data[front_buf].bo, map_info.pixel_data, map_info.bytes);
 
   dlu_kms_atomic_req(core, front_buf, map_info.req);
   dlu_kms_atomic_commit(core, front_buf, map_info.req);
@@ -113,7 +113,7 @@ static void atomic_event_handler(int UNUSED fd, unsigned int UNUSED sequence, un
   static uint8_t front_buf = 0;
   dlu_disp_core *core = (dlu_disp_core *) data;
  
-  core->output_data[front_buf^1].pflip = false;
+  core->oc_data[front_buf^1].pflip = false;
   draw_screen(core, front_buf^1);
 
   front_buf ^= 1;
@@ -144,18 +144,18 @@ static void handle_screen(dlu_disp_core *core, const char *image) {
     map_info.is_image = true;
     free(picture.bytes);
 
-    if (pw != core->output_data[0].mode.hdisplay) {
+    if (pw != core->oc_data[0].mode.hdisplay) {
       dlu_log_me(DLU_DANGER, "[x] For now the picture pixel width must be picture must be the \
-                           same amount of pixels the monitor will allow (%u)", core->output_data[0].mode.hdisplay);
+                           same amount of pixels the monitor will allow (%u)", core->oc_data[0].mode.hdisplay);
       goto exit_func;
     }
 
     /* Calculate image size in bytes */
-    map_info.bytes = core->output_data[0].mode.hdisplay * core->output_data[0].mode.vdisplay * (requested_channels <= 0 ? pchannels : requested_channels); 
+    map_info.bytes = core->oc_data[0].mode.hdisplay * core->oc_data[0].mode.vdisplay * (requested_channels <= 0 ? pchannels : requested_channels); 
   } else {
     /* Create space to assign pixel data to */
-    map_info.bytes = core->output_data[0].mode.hdisplay * core->output_data[0].mode.vdisplay * 4; /* 4 bytes = 32 bit, R = 8 bits, G = 8 bits, B = 8 bits, A = 8 bits */
-    map_info.pixel_data = mmap(NULL, map_info.bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, INDEX_IGNORE, core->buff_data[0].offsets[0]);
+    map_info.bytes = core->oc_data[0].mode.hdisplay * core->oc_data[0].mode.vdisplay * 4; /* 4 bytes = 32 bit, R = 8 bits, G = 8 bits, B = 8 bits, A = 8 bits */
+    map_info.pixel_data = mmap(NULL, map_info.bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, INDEX_IGNORE, core->dfb_data[0].offsets[0]);
     if (map_info.pixel_data == MAP_FAILED) { dlu_log_me(DLU_DANGER, "[x] %s", strerror(errno)); goto exit_func; }
   }
 
