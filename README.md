@@ -4,6 +4,10 @@ NOTE: The wayland client code is a modified version of what [Simon Ser did here]
 
 Folder with a dump of very simple examples for liblucurious.so.
 
+## Known Issues
+* kms-novulkan crashes on (Arch Linux, Ubuntu 20.04)
+* rotate-rectangle example crashes on Ubuntu 20.04
+
 ### To install
 
 **Via AUR**
